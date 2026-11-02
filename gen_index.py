@@ -3,32 +3,25 @@
 """
 自动生成 index.json
 
+包名规则：
+    驱动包  <driver>-<chip>-<version>.tar.gz   → key <driver>-<chip>
+    芯片包  <chip>-<version>.tar.gz            → key <chip>
+    chip = "*" 表示通用
+
 用法：
     cd <repo-root>
     python3 gen_index.py
 
-读取：
-    domain.yaml           域配置（可选）
-
 扫描：
-    <developer>/<name>-<version>.tar.gz
-    <developer>/<name>-<version>.tar.gz.sig
-    <developer>/<name>.pub
-    <developer>/<name>.pub.sig
+    <developer>/<driver>-<chip>-<version>.tar.gz
+    <developer>/<driver>-<chip>-<version>.tar.gz.sig
+    <developer>/<chip>-<version>.tar.gz
+    <developer>/<chip>-<version>.tar.gz.sig
+    <developer>/<developer>.pub
+    <developer>/<developer>.pub.sig
 
 生成：
     index.json（不签名）
-
-说明：
-    - chip 包：含 chip.json / chip.toml
-    - driver 包：含 manifest.json / manifest.toml
-    - 版本从文件名解析
-    - sha256 / size 自动计算
-    - url / sig_url 用 {baseurl} 占位符
-    - description / config / provides / requires 从清单原样读出
-    - chip 包额外写 pins
-    - kind 从包内容判断
-    - domain.yaml 里的域配置写入 index.json 的 domains 字段
 """
 
 import hashlib
@@ -37,7 +30,6 @@ import sys
 import tarfile
 from pathlib import Path
 
-# TOML 支持：Python 3.11+ 用内置 tomllib，低版本用 tomli
 try:
     import tomllib  # type: ignore
     HAS_TOML = True
@@ -48,27 +40,19 @@ except ImportError:
     except ImportError:
         HAS_TOML = False
 
-# 尝试导入 yaml（PyYAML）
 try:
     import yaml
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
 
-# 仓库根目录
 REPO_DIR = Path(__file__).resolve().parent
 
-# 忽略的目录
 IGNORE_DIRS = {".git", "publish", "__pycache__", ".github", "toolchains"}
-
-# 忽略的文件
 IGNORE_FILES = {"index.json", "index.json.sig", "gen_index.py",
                 "README.md", "LICENSE", "domain.yaml"}
-
-# 忽略的扩展名
 IGNORE_SUFFIXES = {".key"}
 
-# 清单文件名（按优先级）
 MANIFEST_NAMES = ("manifest.json", "manifest.toml",
                   "chip.json", "chip.toml")
 
@@ -81,14 +65,16 @@ def sha256_file(path):
     return h.hexdigest()
 
 
-def parse_manifest(data, is_chip):
-    """
-    把清单 dict 归一成 index 条目需要的字段，缺省给稳定默认值。
-    chip 包额外带 pins；driver 包 pins 为 None（不写）。
-    """
-    entry = {
+def parse_manifest(data, is_chip, fallback_chip=""):
+    chip = data.get("chip", "") or ""
+    if is_chip and not chip:
+        chip = data.get("name", "") or ""
+    if not chip:
+        chip = fallback_chip
+    return {
         "kind": "chip" if is_chip else "driver",
         "name": data.get("name", "") or "",
+        "chip": chip,
         "requires":    data.get("requires", {}) or {},
         "description": data.get("description", "") or "",
         "config":      data.get("config", {}) or {},
@@ -96,15 +82,9 @@ def parse_manifest(data, is_chip):
         "license":     data.get("license", "MIT") or "MIT",
         "pins":        (data.get("pins", {}) or {}) if is_chip else None,
     }
-    return entry
 
 
-def read_package_meta(tar_path):
-    """
-    读 tar.gz 里的清单（json 或 toml），返回 dict 或 None。
-    dict 字段：kind, name, requires, description, config, provides, license, pins
-    pins 仅 chip 有值，driver 为 None。
-    """
+def read_package_meta(tar_path, fallback_chip=""):
     try:
         with tarfile.open(tar_path, "r:gz") as tar:
             for member in tar.getmembers():
@@ -131,7 +111,7 @@ def read_package_meta(tar_path):
                 else:
                     data = json.loads(raw.decode("utf-8"))
 
-                return parse_manifest(data, is_chip)
+                return parse_manifest(data, is_chip, fallback_chip)
     except Exception as e:
         print(f"  warn: 读 {tar_path} 失败: {e}")
     return None
@@ -139,33 +119,34 @@ def read_package_meta(tar_path):
 
 def parse_filename(fname):
     """
-    从 <name>-<version>.tar.gz 解析 name 和 version
-    name 里可能有 '-'，version 是最后一段 semver
+    <driver>-<chip>-<version>.tar.gz  → (driver, chip, version)
+    <chip>-<version>.tar.gz          → (chip, "", version)
+    其他 → (None, None, None)
     """
     if not fname.endswith(".tar.gz"):
-        return None, None
+        return None, None, None
 
     base = fname[:-len(".tar.gz")]
-    parts = base.rsplit("-", 1)
-    if len(parts) != 2:
-        return None, None
+    parts = base.rsplit("-", 2)
+    if len(parts) == 3:
+        driver, chip, ver = parts
+    elif len(parts) == 2:
+        driver, ver = parts
+        chip = ""
+    else:
+        return None, None, None
 
-    name, ver = parts
     vparts = ver.split(".")
     if len(vparts) < 2:
-        return None, None
+        return None, None, None
     for p in vparts:
         if not p.isdigit():
-            return None, None
+            return None, None, None
 
-    return name, ver
+    return driver, chip, ver
 
 
 def load_domain_config():
-    """
-    读 domain.yaml
-    返回 dict: {domain_name: {index, official_pub, official_pub_sig}}
-    """
     path = REPO_DIR / "domain.yaml"
     if not path.exists():
         print("  domain.yaml 不存在，跳过")
@@ -222,7 +203,7 @@ def main():
     if not HAS_TOML:
         print("  warn: 未检测到 tomllib/tomli，tar 内的 .toml 清单将无法读取")
 
-    # 1. 读 domain.yaml
+    # 1. domain.yaml
     print(f"\n读 domain.yaml")
     domains = load_domain_config()
     if domains:
@@ -231,7 +212,7 @@ def main():
     else:
         print(f"  （无域配置）")
 
-    # 2. 扫描开发者目录
+    # 2. 扫描
     developers = {}
     packages = {}
 
@@ -244,7 +225,6 @@ def main():
         dev_name = entry.name
         print(f"\n开发者: {dev_name}")
 
-        # 公钥
         pub = entry / f"{dev_name}.pub"
         pub_sig = entry / f"{dev_name}.pub.sig"
 
@@ -261,13 +241,12 @@ def main():
         }
         print(f"  ok: 公钥 + 签名")
 
-        # 包
         for tar in sorted(entry.glob("*.tar.gz")):
             if tar.name.endswith(".sig"):
                 continue
 
-            name, ver = parse_filename(tar.name)
-            if not name or not ver:
+            driver, chip, ver = parse_filename(tar.name)
+            if not driver or not ver:
                 print(f"  warn: 跳过（文件名不符合）: {tar.name}")
                 continue
 
@@ -276,7 +255,7 @@ def main():
                 print(f"  warn: 缺少签名: {sig.name}")
                 continue
 
-            meta = read_package_meta(tar)
+            meta = read_package_meta(tar, fallback_chip=chip)
             if not meta:
                 print(f"  warn: 跳过（无法识别包类型）: {tar.name}")
                 continue
@@ -284,11 +263,22 @@ def main():
             sha = sha256_file(tar)
             size = tar.stat().st_size
 
-            if name not in packages:
-                packages[name] = {"versions": {}}
+            if meta["kind"] == "chip":
+                pkg_key = driver
+                chip_final = driver
+            else:
+                if not chip:
+                    print(f"  warn: 跳过（驱动包文件名缺 chip 段）: {tar.name}")
+                    continue
+                pkg_key = f"{driver}-{chip}"
+                chip_final = chip
+
+            if pkg_key not in packages:
+                packages[pkg_key] = {"versions": {}}
 
             ver_entry = {
                 "kind": meta["kind"],
+                "chip": chip_final,
                 "developer": dev_name,
                 "url": f"{{baseurl}}/{dev_name}/{tar.name}",
                 "sig_url": f"{{baseurl}}/{dev_name}/{tar.name}.sig",
@@ -300,14 +290,13 @@ def main():
                 "provides": meta["provides"],
                 "requires": meta["requires"],
             }
-            # chip 包额外写 pins
             if meta["kind"] == "chip" and meta.get("pins") is not None:
                 ver_entry["pins"] = meta["pins"]
 
-            packages[name]["versions"][ver] = ver_entry
-            print(f"  ok: {name}@{ver} ({meta['kind']}, {size} bytes)")
+            packages[pkg_key]["versions"][ver] = ver_entry
+            print(f"  ok: {pkg_key}@{ver} ({meta['kind']}, {size} bytes)")
 
-    # 3. 生成 index.json
+    # 3. 写 index.json
     index = {
         "schema": 1,
         "official_pub": "{baseurl}/official.pub",
@@ -327,7 +316,6 @@ def main():
     print(f"包: {len(packages)}")
     print(f"索引: {index_path}")
 
-    # 4. 提示重新签名
     print(f"\n下一步：")
     print(f"  # RSA")
     print(f"  openssl dgst -sha256 -sign official.key -out index.json.sig index.json")
