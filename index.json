@@ -25,6 +25,74 @@
           "sha256": "703f56842fe7a61bba0950f16e3833f7b5368dc03d717f08f687782e3604b650",
           "size": 19973,
           "license": "MIT",
+          "description": "CH552 USB CDC serial",
+          "config": {
+            "usb_vid": {
+              "type": "int",
+              "default": "0x1209"
+            },
+            "usb_pid": {
+              "type": "int",
+              "default": "0x0001"
+            },
+            "usb_device_version": {
+              "type": "int",
+              "default": "0x0100"
+            },
+            "usb_max_power_ma": {
+              "type": "int",
+              "default": "100"
+            },
+            "usb_manufacturer": {
+              "type": "string",
+              "length": 16,
+              "default": "HPM"
+            },
+            "usb_product": {
+              "type": "string",
+              "length": 16,
+              "default": "CH552 CDC"
+            },
+            "usb_serial": {
+              "type": "string",
+              "length": 64,
+              "default": "0001"
+            },
+            "usb_interface": {
+              "type": "string",
+              "length": 16,
+              "default": "CDC"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              },
+              {
+                "name": "write",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "char",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "name": "available",
+                "return": "uint8_t",
+                "params": []
+              },
+              {
+                "name": "read",
+                "return": "char",
+                "params": []
+              }
+            ]
+          },
           "requires": {}
         }
       }
@@ -39,7 +107,76 @@
           "sha256": "729572dc1c78c12e5b97b81811d5a91d3d44fa5390c5231351803e1e8f134c3d",
           "size": 13971,
           "license": "MIT",
-          "requires": {}
+          "description": "",
+          "config": {},
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              }
+            ]
+          },
+          "requires": {},
+          "pins": {
+            "P1_1": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_4": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_5": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_0": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_1": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_2": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_3": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_4": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            }
+          }
         }
       }
     },
@@ -53,9 +190,57 @@
           "sha256": "c828478a933425f5e49d64a4a93670955dbb451e9124103f24f75d4a1395271f",
           "size": 1200,
           "license": "MIT",
+          "description": "Independent hardware timer PWM driver",
+          "config": {
+            "freq_hz": {
+              "type": "int",
+              "default": "50"
+            },
+            "osc_hz": {
+              "type": "int",
+              "default": "11059200"
+            },
+            "clock_mode": {
+              "type": "int",
+              "default": "12"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "set_duty",
+                "return": "int",
+                "params": [
+                  {
+                    "type": "unsigned int",
+                    "name": "permille"
+                  }
+                ]
+              },
+              {
+                "name": "start",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "stop",
+                "return": "int",
+                "params": []
+              }
+            ]
+          },
           "requires": {
             "pin": {
-              "type": "gpio_out"
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
             }
           }
         }
@@ -71,30 +256,108 @@
           "sha256": "93573210709f723943e3ca1d3726a3fc8942872626629e1dc1a399e730e993e5",
           "size": 1447,
           "license": "MIT",
+          "description": "Single-digit 7-segment display via GPIO",
+          "config": {},
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "set_digit",
+                "return": "int",
+                "params": [
+                  {
+                    "type": "unsigned char",
+                    "name": "value"
+                  }
+                ]
+              },
+              {
+                "name": "set_raw",
+                "return": "int",
+                "params": [
+                  {
+                    "type": "unsigned char",
+                    "name": "seg_mask"
+                  }
+                ]
+              },
+              {
+                "name": "set_dp",
+                "return": "int",
+                "params": [
+                  {
+                    "type": "unsigned char",
+                    "name": "on"
+                  }
+                ]
+              },
+              {
+                "name": "clear",
+                "return": "int",
+                "params": []
+              }
+            ]
+          },
           "requires": {
             "seg_a": {
-              "type": "gpio_out"
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
             },
             "seg_b": {
-              "type": "gpio_out"
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
             },
             "seg_c": {
-              "type": "gpio_out"
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
             },
             "seg_d": {
-              "type": "gpio_out"
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
             },
             "seg_e": {
-              "type": "gpio_out"
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
             },
             "seg_f": {
-              "type": "gpio_out"
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
             },
             "seg_g": {
-              "type": "gpio_out"
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
             },
             "seg_dp": {
-              "type": "gpio_out"
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
             }
           }
         }
@@ -110,7 +373,132 @@
           "sha256": "45cfeaddb06b56208739c4593a791d00ffce69865488f0f7ac62fa3463f41873",
           "size": 3126,
           "license": "MIT",
-          "requires": {}
+          "description": "",
+          "config": {},
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              }
+            ]
+          },
+          "requires": {},
+          "pins": {
+            "P1_0": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_1": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_2": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_3": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_4": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_5": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_6": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_7": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_0": {
+              "capabilities": [
+                {
+                  "type": "uart_rx"
+                }
+              ]
+            },
+            "P3_1": {
+              "capabilities": [
+                {
+                  "type": "uart_tx"
+                }
+              ]
+            },
+            "P3_2": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_3": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_4": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_5": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_6": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_7": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            }
+          }
         }
       }
     },
@@ -124,7 +512,74 @@
           "sha256": "73550d9cf5b448191366e3ff0ba749bd757e99bb2cbf363069157fb1cdf40d95",
           "size": 78032,
           "license": "MIT",
-          "requires": {}
+          "description": "",
+          "config": {},
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              }
+            ]
+          },
+          "requires": {},
+          "pins": {
+            "PA4": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "PA5": {
+              "shareable": true,
+              "capabilities": [
+                {
+                  "type": "spi_sck",
+                  "instance": "SPI1"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "PA6": {
+              "shareable": true,
+              "capabilities": [
+                {
+                  "type": "spi_miso",
+                  "instance": "SPI1"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "PA7": {
+              "shareable": true,
+              "capabilities": [
+                {
+                  "type": "spi_mosi",
+                  "instance": "SPI1"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "PB0": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                },
+                {
+                  "type": "adc",
+                  "channel": 8
+                }
+              ]
+            }
+          }
         }
       }
     },
@@ -138,6 +593,74 @@
           "sha256": "c8a3da674fcc42c46209284a0507845f1b0200f75c9973b3a6f3d387d061eb75",
           "size": 31177,
           "license": "MIT",
+          "description": "USB CDC ACM virtual COM port for STM32F103C8T6",
+          "config": {
+            "usb_vid": {
+              "type": "int",
+              "default": "0x1209"
+            },
+            "usb_pid": {
+              "type": "int",
+              "default": "0x0001"
+            },
+            "usb_device_version": {
+              "type": "int",
+              "default": "0x0100"
+            },
+            "usb_max_power_ma": {
+              "type": "int",
+              "default": "100"
+            },
+            "usb_manufacturer": {
+              "type": "string",
+              "length": 16,
+              "default": "HPM"
+            },
+            "usb_product": {
+              "type": "string",
+              "length": 16,
+              "default": "STM32 CDC"
+            },
+            "usb_serial": {
+              "type": "string",
+              "length": 16,
+              "default": "0001"
+            },
+            "usb_interface": {
+              "type": "string",
+              "length": 16,
+              "default": "CDC"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              },
+              {
+                "name": "write",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "char",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "name": "available",
+                "return": "uint8_t",
+                "params": []
+              },
+              {
+                "name": "read",
+                "return": "char",
+                "params": []
+              }
+            ]
+          },
           "requires": {}
         }
       }
@@ -152,6 +675,50 @@
           "sha256": "27574853631412237c82ef06a5ee85c87b9ae5543009066b10dd25cd45688106",
           "size": 1306,
           "license": "MIT",
+          "description": "Timer based precise delay driver",
+          "config": {
+            "osc_hz": {
+              "type": "int",
+              "default": "11059200"
+            },
+            "clock_mode": {
+              "type": "int",
+              "default": "12"
+            },
+            "timer_id": {
+              "type": "int",
+              "default": "1"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "delay_ms",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "unsigned int",
+                    "name": "ms"
+                  }
+                ]
+              },
+              {
+                "name": "on_tick",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "void (*)(void)",
+                    "name": "callback"
+                  }
+                ]
+              }
+            ]
+          },
           "requires": {}
         }
       }

@@ -20,12 +20,13 @@
     index.json（不签名）
 
 说明：
-    - chip 包：含 chip.json
-    - driver 包：含 manifest.json
+    - chip 包：含 chip.json / chip.toml
+    - driver 包：含 manifest.json / manifest.toml
     - 版本从文件名解析
     - sha256 / size 自动计算
     - url / sig_url 用 {baseurl} 占位符
-    - requires 从 manifest.json 读
+    - description / config / provides / requires 从清单原样读出
+    - chip 包额外写 pins
     - kind 从包内容判断
     - domain.yaml 里的域配置写入 index.json 的 domains 字段
 """
@@ -35,6 +36,17 @@ import json
 import sys
 import tarfile
 from pathlib import Path
+
+# TOML 支持：Python 3.11+ 用内置 tomllib，低版本用 tomli
+try:
+    import tomllib  # type: ignore
+    HAS_TOML = True
+except ImportError:
+    try:
+        import tomli as tomllib  # type: ignore
+        HAS_TOML = True
+    except ImportError:
+        HAS_TOML = False
 
 # 尝试导入 yaml（PyYAML）
 try:
@@ -56,6 +68,10 @@ IGNORE_FILES = {"index.json", "index.json.sig", "gen_index.py",
 # 忽略的扩展名
 IGNORE_SUFFIXES = {".key"}
 
+# 清单文件名（按优先级）
+MANIFEST_NAMES = ("manifest.json", "manifest.toml",
+                  "chip.json", "chip.toml")
+
 
 def sha256_file(path):
     h = hashlib.sha256()
@@ -65,10 +81,29 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def parse_manifest(data, is_chip):
+    """
+    把清单 dict 归一成 index 条目需要的字段，缺省给稳定默认值。
+    chip 包额外带 pins；driver 包 pins 为 None（不写）。
+    """
+    entry = {
+        "kind": "chip" if is_chip else "driver",
+        "name": data.get("name", "") or "",
+        "requires":    data.get("requires", {}) or {},
+        "description": data.get("description", "") or "",
+        "config":      data.get("config", {}) or {},
+        "provides":    data.get("provides", {}) or {},
+        "license":     data.get("license", "MIT") or "MIT",
+        "pins":        (data.get("pins", {}) or {}) if is_chip else None,
+    }
+    return entry
+
+
 def read_package_meta(tar_path):
     """
-    读 tar.gz 里的 chip.json 或 manifest.json
-    返回 (kind, name, requires)
+    读 tar.gz 里的清单（json 或 toml），返回 dict 或 None。
+    dict 字段：kind, name, requires, description, config, provides, license, pins
+    pins 仅 chip 有值，driver 为 None。
     """
     try:
         with tarfile.open(tar_path, "r:gz") as tar:
@@ -79,24 +114,27 @@ def read_package_meta(tar_path):
                 if len(parts) < 2:
                     continue
                 fname = parts[-1]
-                if fname not in ("chip.json", "manifest.json"):
+                if fname not in MANIFEST_NAMES:
                     continue
 
                 f = tar.extractfile(member)
                 if not f:
                     continue
-                data = json.loads(f.read().decode("utf-8"))
+                raw = f.read()
 
-                if fname == "chip.json":
-                    return ("chip", data.get("name", ""), {})
+                is_chip = fname.startswith("chip")
+                if fname.endswith(".toml"):
+                    if not HAS_TOML:
+                        print(f"  warn: 需要 tomllib/tomli 才能读 {fname}，跳过")
+                        return None
+                    data = tomllib.loads(raw.decode("utf-8"))
                 else:
-                    reqs = {}
-                    for key, req in data.get("requires", {}).items():
-                        reqs[key] = {"type": req.get("type", "")}
-                    return ("driver", data.get("name", ""), reqs)
+                    data = json.loads(raw.decode("utf-8"))
+
+                return parse_manifest(data, is_chip)
     except Exception as e:
         print(f"  warn: 读 {tar_path} 失败: {e}")
-    return (None, None, None)
+    return None
 
 
 def parse_filename(fname):
@@ -181,6 +219,9 @@ def main():
     repo = REPO_DIR
     print(f"仓库目录: {repo}")
 
+    if not HAS_TOML:
+        print("  warn: 未检测到 tomllib/tomli，tar 内的 .toml 清单将无法读取")
+
     # 1. 读 domain.yaml
     print(f"\n读 domain.yaml")
     domains = load_domain_config()
@@ -235,8 +276,8 @@ def main():
                 print(f"  warn: 缺少签名: {sig.name}")
                 continue
 
-            kind, pkg_name, requires = read_package_meta(tar)
-            if not kind:
+            meta = read_package_meta(tar)
+            if not meta:
                 print(f"  warn: 跳过（无法识别包类型）: {tar.name}")
                 continue
 
@@ -246,17 +287,25 @@ def main():
             if name not in packages:
                 packages[name] = {"versions": {}}
 
-            packages[name]["versions"][ver] = {
-                "kind": kind,
+            ver_entry = {
+                "kind": meta["kind"],
                 "developer": dev_name,
                 "url": f"{{baseurl}}/{dev_name}/{tar.name}",
                 "sig_url": f"{{baseurl}}/{dev_name}/{tar.name}.sig",
                 "sha256": sha,
                 "size": size,
-                "license": "MIT",
-                "requires": requires,
+                "license": meta["license"],
+                "description": meta["description"],
+                "config": meta["config"],
+                "provides": meta["provides"],
+                "requires": meta["requires"],
             }
-            print(f"  ok: {name}@{ver} ({kind}, {size} bytes)")
+            # chip 包额外写 pins
+            if meta["kind"] == "chip" and meta.get("pins") is not None:
+                ver_entry["pins"] = meta["pins"]
+
+            packages[name]["versions"][ver] = ver_entry
+            print(f"  ok: {name}@{ver} ({meta['kind']}, {size} bytes)")
 
     # 3. 生成 index.json
     index = {
