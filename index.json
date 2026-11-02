@@ -1,7 +1,12 @@
 {
   "schema": 1,
   "official_pub": "{baseurl}/official.pub",
-  "developers": {},
+  "developers": {
+    "xzc": {
+      "pub": "{baseurl}/xzc/xzc.pub",
+      "pub_sig": "{baseurl}/xzc/xzc.pub.sig"
+    }
+  },
   "domains": {
     "qincnd": {
       "index": "https://raw.githubusercontent.com/qincnd/hpm-repo/main/index.json",
@@ -9,5 +14,604 @@
       "official_pub_sig": "https://raw.githubusercontent.com/qincnd/hpm-repo/main/official.pub.sig"
     }
   },
-  "packages": {}
+  "packages": {
+    "ch552g": {
+      "versions": {
+        "1.0.0": {
+          "kind": "chip",
+          "chip": "ch552g",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/ch552g-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/ch552g-1.0.0.tar.gz.sig",
+          "sha256": "729572dc1c78c12e5b97b81811d5a91d3d44fa5390c5231351803e1e8f134c3d",
+          "size": 13971,
+          "license": "MIT",
+          "description": "",
+          "config": {},
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              }
+            ]
+          },
+          "requires": {},
+          "pins": {
+            "P1_1": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_4": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_5": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_0": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_1": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_2": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_3": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_4": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "pwm-stc90c51": {
+      "versions": {
+        "1.0.0": {
+          "kind": "driver",
+          "chip": "stc90c51",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/pwm-stc90c51-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/pwm-stc90c51-1.0.0.tar.gz.sig",
+          "sha256": "5b43da08c86a5cbb394ee6e9c0b98b6dcba3cc7a1d29cddb22e6ab0d9be84053",
+          "size": 1220,
+          "license": "MIT",
+          "description": "Independent hardware timer PWM driver",
+          "config": {
+            "freq_hz": {
+              "type": "int",
+              "default": "50"
+            },
+            "osc_hz": {
+              "type": "int",
+              "default": "11059200"
+            },
+            "clock_mode": {
+              "type": "int",
+              "default": "12"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "set_duty",
+                "return": "int",
+                "params": [
+                  {
+                    "type": "unsigned int",
+                    "name": "permille"
+                  }
+                ]
+              },
+              {
+                "name": "start",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "stop",
+                "return": "int",
+                "params": []
+              }
+            ]
+          },
+          "requires": {
+            "pin": {
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "stc90c51": {
+      "versions": {
+        "0.1.0": {
+          "kind": "chip",
+          "chip": "stc90c51",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/stc90c51-0.1.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/stc90c51-0.1.0.tar.gz.sig",
+          "sha256": "45cfeaddb06b56208739c4593a791d00ffce69865488f0f7ac62fa3463f41873",
+          "size": 3126,
+          "license": "MIT",
+          "description": "",
+          "config": {},
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              }
+            ]
+          },
+          "requires": {},
+          "pins": {
+            "P1_0": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_1": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_2": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_3": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_4": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_5": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_6": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_7": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_0": {
+              "capabilities": [
+                {
+                  "type": "uart_rx"
+                }
+              ]
+            },
+            "P3_1": {
+              "capabilities": [
+                {
+                  "type": "uart_tx"
+                }
+              ]
+            },
+            "P3_2": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_3": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_4": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_5": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_6": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P3_7": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "stm32f103c8t6": {
+      "versions": {
+        "1.0.0": {
+          "kind": "chip",
+          "chip": "stm32f103c8t6",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/stm32f103c8t6-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/stm32f103c8t6-1.0.0.tar.gz.sig",
+          "sha256": "73550d9cf5b448191366e3ff0ba749bd757e99bb2cbf363069157fb1cdf40d95",
+          "size": 78032,
+          "license": "MIT",
+          "description": "",
+          "config": {},
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              }
+            ]
+          },
+          "requires": {},
+          "pins": {
+            "PA4": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "PA5": {
+              "shareable": true,
+              "capabilities": [
+                {
+                  "type": "spi_sck",
+                  "instance": "SPI1"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "PA6": {
+              "shareable": true,
+              "capabilities": [
+                {
+                  "type": "spi_miso",
+                  "instance": "SPI1"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "PA7": {
+              "shareable": true,
+              "capabilities": [
+                {
+                  "type": "spi_mosi",
+                  "instance": "SPI1"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "PB0": {
+              "capabilities": [
+                {
+                  "type": "gpio_out"
+                },
+                {
+                  "type": "adc",
+                  "channel": 8
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "time-stc90c51": {
+      "versions": {
+        "1.0.0": {
+          "kind": "driver",
+          "chip": "stc90c51",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/time-stc90c51-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/time-stc90c51-1.0.0.tar.gz.sig",
+          "sha256": "32f4b2dd346a8ef8e48d4b53634403c311ca72f5b7e2aec523a5c3274b9091bd",
+          "size": 1309,
+          "license": "MIT",
+          "description": "Timer based precise delay driver",
+          "config": {
+            "osc_hz": {
+              "type": "int",
+              "default": "11059200"
+            },
+            "clock_mode": {
+              "type": "int",
+              "default": "12"
+            },
+            "timer_id": {
+              "type": "int",
+              "default": "1"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "delay_ms",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "unsigned int",
+                    "name": "ms"
+                  }
+                ]
+              },
+              {
+                "name": "on_tick",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "void (*)(void)",
+                    "name": "callback"
+                  }
+                ]
+              }
+            ]
+          },
+          "requires": {}
+        }
+      }
+    },
+    "usb_cdc-ch552": {
+      "versions": {
+        "1.0.0": {
+          "kind": "driver",
+          "chip": "ch552",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/usb_cdc-ch552-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/usb_cdc-ch552-1.0.0.tar.gz.sig",
+          "sha256": "9b550b21ef1b55d6c9c6668de8404147efe994b3ff21496a05568ac3ac45c41d",
+          "size": 19981,
+          "license": "MIT",
+          "description": "CH552 USB CDC serial",
+          "config": {
+            "usb_vid": {
+              "type": "int",
+              "default": "0x1209"
+            },
+            "usb_pid": {
+              "type": "int",
+              "default": "0x0001"
+            },
+            "usb_device_version": {
+              "type": "int",
+              "default": "0x0100"
+            },
+            "usb_max_power_ma": {
+              "type": "int",
+              "default": "100"
+            },
+            "usb_manufacturer": {
+              "type": "string",
+              "length": 16,
+              "default": "HPM"
+            },
+            "usb_product": {
+              "type": "string",
+              "length": 16,
+              "default": "CH552 CDC"
+            },
+            "usb_serial": {
+              "type": "string",
+              "length": 64,
+              "default": "0001"
+            },
+            "usb_interface": {
+              "type": "string",
+              "length": 16,
+              "default": "CDC"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              },
+              {
+                "name": "write",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "char",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "name": "available",
+                "return": "uint8_t",
+                "params": []
+              },
+              {
+                "name": "read",
+                "return": "char",
+                "params": []
+              }
+            ]
+          },
+          "requires": {}
+        }
+      }
+    },
+    "usb_cdc-stm32f103c8t6": {
+      "versions": {
+        "1.0.0": {
+          "kind": "driver",
+          "chip": "stm32f103c8t6",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/usb_cdc-stm32f103c8t6-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/usb_cdc-stm32f103c8t6-1.0.0.tar.gz.sig",
+          "sha256": "6f0eb7e05a14dccda59b18d718c4de108344ea14508b0291279ae29e25eae42c",
+          "size": 31188,
+          "license": "MIT",
+          "description": "USB CDC ACM virtual COM port for STM32F103C8T6",
+          "config": {
+            "usb_vid": {
+              "type": "int",
+              "default": "0x1209"
+            },
+            "usb_pid": {
+              "type": "int",
+              "default": "0x0001"
+            },
+            "usb_device_version": {
+              "type": "int",
+              "default": "0x0100"
+            },
+            "usb_max_power_ma": {
+              "type": "int",
+              "default": "100"
+            },
+            "usb_manufacturer": {
+              "type": "string",
+              "length": 16,
+              "default": "HPM"
+            },
+            "usb_product": {
+              "type": "string",
+              "length": 16,
+              "default": "STM32 CDC"
+            },
+            "usb_serial": {
+              "type": "string",
+              "length": 16,
+              "default": "0001"
+            },
+            "usb_interface": {
+              "type": "string",
+              "length": 16,
+              "default": "CDC"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              },
+              {
+                "name": "write",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "char",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "name": "available",
+                "return": "uint8_t",
+                "params": []
+              },
+              {
+                "name": "read",
+                "return": "char",
+                "params": []
+              }
+            ]
+          },
+          "requires": {}
+        }
+      }
+    }
+  }
 }
