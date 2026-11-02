@@ -15,92 +15,11 @@
     }
   },
   "packages": {
-    "ch552_usb_cdc": {
-      "versions": {
-        "1.0.0": {
-          "kind": "driver",
-          "developer": "xzc",
-          "url": "{baseurl}/xzc/ch552_usb_cdc-1.0.0.tar.gz",
-          "sig_url": "{baseurl}/xzc/ch552_usb_cdc-1.0.0.tar.gz.sig",
-          "sha256": "703f56842fe7a61bba0950f16e3833f7b5368dc03d717f08f687782e3604b650",
-          "size": 19973,
-          "license": "MIT",
-          "description": "CH552 USB CDC serial",
-          "config": {
-            "usb_vid": {
-              "type": "int",
-              "default": "0x1209"
-            },
-            "usb_pid": {
-              "type": "int",
-              "default": "0x0001"
-            },
-            "usb_device_version": {
-              "type": "int",
-              "default": "0x0100"
-            },
-            "usb_max_power_ma": {
-              "type": "int",
-              "default": "100"
-            },
-            "usb_manufacturer": {
-              "type": "string",
-              "length": 16,
-              "default": "HPM"
-            },
-            "usb_product": {
-              "type": "string",
-              "length": 16,
-              "default": "CH552 CDC"
-            },
-            "usb_serial": {
-              "type": "string",
-              "length": 64,
-              "default": "0001"
-            },
-            "usb_interface": {
-              "type": "string",
-              "length": 16,
-              "default": "CDC"
-            }
-          },
-          "provides": {
-            "methods": [
-              {
-                "name": "init",
-                "return": "void",
-                "params": []
-              },
-              {
-                "name": "write",
-                "return": "void",
-                "params": [
-                  {
-                    "type": "char",
-                    "name": "c"
-                  }
-                ]
-              },
-              {
-                "name": "available",
-                "return": "uint8_t",
-                "params": []
-              },
-              {
-                "name": "read",
-                "return": "char",
-                "params": []
-              }
-            ]
-          },
-          "requires": {}
-        }
-      }
-    },
     "ch552g": {
       "versions": {
         "1.0.0": {
           "kind": "chip",
+          "chip": "ch552g",
           "developer": "xzc",
           "url": "{baseurl}/xzc/ch552g-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/ch552g-1.0.0.tar.gz.sig",
@@ -180,15 +99,16 @@
         }
       }
     },
-    "pwm": {
+    "pwm-stc90c51": {
       "versions": {
         "1.0.0": {
           "kind": "driver",
+          "chip": "stc90c51",
           "developer": "xzc",
-          "url": "{baseurl}/xzc/pwm-1.0.0.tar.gz",
-          "sig_url": "{baseurl}/xzc/pwm-1.0.0.tar.gz.sig",
-          "sha256": "c828478a933425f5e49d64a4a93670955dbb451e9124103f24f75d4a1395271f",
-          "size": 1200,
+          "url": "{baseurl}/xzc/pwm-stc90c51-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/pwm-stc90c51-1.0.0.tar.gz.sig",
+          "sha256": "5b43da08c86a5cbb394ee6e9c0b98b6dcba3cc7a1d29cddb22e6ab0d9be84053",
+          "size": 1220,
           "license": "MIT",
           "description": "Independent hardware timer PWM driver",
           "config": {
@@ -246,127 +166,11 @@
         }
       }
     },
-    "seg1": {
-      "versions": {
-        "1.0.0": {
-          "kind": "driver",
-          "developer": "xzc",
-          "url": "{baseurl}/xzc/seg1-1.0.0.tar.gz",
-          "sig_url": "{baseurl}/xzc/seg1-1.0.0.tar.gz.sig",
-          "sha256": "93573210709f723943e3ca1d3726a3fc8942872626629e1dc1a399e730e993e5",
-          "size": 1447,
-          "license": "MIT",
-          "description": "Single-digit 7-segment display via GPIO",
-          "config": {},
-          "provides": {
-            "methods": [
-              {
-                "name": "init",
-                "return": "int",
-                "params": []
-              },
-              {
-                "name": "set_digit",
-                "return": "int",
-                "params": [
-                  {
-                    "type": "unsigned char",
-                    "name": "value"
-                  }
-                ]
-              },
-              {
-                "name": "set_raw",
-                "return": "int",
-                "params": [
-                  {
-                    "type": "unsigned char",
-                    "name": "seg_mask"
-                  }
-                ]
-              },
-              {
-                "name": "set_dp",
-                "return": "int",
-                "params": [
-                  {
-                    "type": "unsigned char",
-                    "name": "on"
-                  }
-                ]
-              },
-              {
-                "name": "clear",
-                "return": "int",
-                "params": []
-              }
-            ]
-          },
-          "requires": {
-            "seg_a": {
-              "type": "gpio_out",
-              "methods": [
-                "init",
-                "write"
-              ]
-            },
-            "seg_b": {
-              "type": "gpio_out",
-              "methods": [
-                "init",
-                "write"
-              ]
-            },
-            "seg_c": {
-              "type": "gpio_out",
-              "methods": [
-                "init",
-                "write"
-              ]
-            },
-            "seg_d": {
-              "type": "gpio_out",
-              "methods": [
-                "init",
-                "write"
-              ]
-            },
-            "seg_e": {
-              "type": "gpio_out",
-              "methods": [
-                "init",
-                "write"
-              ]
-            },
-            "seg_f": {
-              "type": "gpio_out",
-              "methods": [
-                "init",
-                "write"
-              ]
-            },
-            "seg_g": {
-              "type": "gpio_out",
-              "methods": [
-                "init",
-                "write"
-              ]
-            },
-            "seg_dp": {
-              "type": "gpio_out",
-              "methods": [
-                "init",
-                "write"
-              ]
-            }
-          }
-        }
-      }
-    },
     "stc90c51": {
       "versions": {
         "0.1.0": {
           "kind": "chip",
+          "chip": "stc90c51",
           "developer": "xzc",
           "url": "{baseurl}/xzc/stc90c51-0.1.0.tar.gz",
           "sig_url": "{baseurl}/xzc/stc90c51-0.1.0.tar.gz.sig",
@@ -506,6 +310,7 @@
       "versions": {
         "1.0.0": {
           "kind": "chip",
+          "chip": "stm32f103c8t6",
           "developer": "xzc",
           "url": "{baseurl}/xzc/stm32f103c8t6-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/stm32f103c8t6-1.0.0.tar.gz.sig",
@@ -583,15 +388,158 @@
         }
       }
     },
-    "stm32f103c8t6_usb_cdc": {
+    "time-stc90c51": {
       "versions": {
         "1.0.0": {
           "kind": "driver",
+          "chip": "stc90c51",
           "developer": "xzc",
-          "url": "{baseurl}/xzc/stm32f103c8t6_usb_cdc-1.0.0.tar.gz",
-          "sig_url": "{baseurl}/xzc/stm32f103c8t6_usb_cdc-1.0.0.tar.gz.sig",
-          "sha256": "c8a3da674fcc42c46209284a0507845f1b0200f75c9973b3a6f3d387d061eb75",
-          "size": 31177,
+          "url": "{baseurl}/xzc/time-stc90c51-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/time-stc90c51-1.0.0.tar.gz.sig",
+          "sha256": "32f4b2dd346a8ef8e48d4b53634403c311ca72f5b7e2aec523a5c3274b9091bd",
+          "size": 1309,
+          "license": "MIT",
+          "description": "Timer based precise delay driver",
+          "config": {
+            "osc_hz": {
+              "type": "int",
+              "default": "11059200"
+            },
+            "clock_mode": {
+              "type": "int",
+              "default": "12"
+            },
+            "timer_id": {
+              "type": "int",
+              "default": "1"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "delay_ms",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "unsigned int",
+                    "name": "ms"
+                  }
+                ]
+              },
+              {
+                "name": "on_tick",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "void (*)(void)",
+                    "name": "callback"
+                  }
+                ]
+              }
+            ]
+          },
+          "requires": {}
+        }
+      }
+    },
+    "usb_cdc-ch552": {
+      "versions": {
+        "1.0.0": {
+          "kind": "driver",
+          "chip": "ch552",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/usb_cdc-ch552-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/usb_cdc-ch552-1.0.0.tar.gz.sig",
+          "sha256": "9b550b21ef1b55d6c9c6668de8404147efe994b3ff21496a05568ac3ac45c41d",
+          "size": 19981,
+          "license": "MIT",
+          "description": "CH552 USB CDC serial",
+          "config": {
+            "usb_vid": {
+              "type": "int",
+              "default": "0x1209"
+            },
+            "usb_pid": {
+              "type": "int",
+              "default": "0x0001"
+            },
+            "usb_device_version": {
+              "type": "int",
+              "default": "0x0100"
+            },
+            "usb_max_power_ma": {
+              "type": "int",
+              "default": "100"
+            },
+            "usb_manufacturer": {
+              "type": "string",
+              "length": 16,
+              "default": "HPM"
+            },
+            "usb_product": {
+              "type": "string",
+              "length": 16,
+              "default": "CH552 CDC"
+            },
+            "usb_serial": {
+              "type": "string",
+              "length": 64,
+              "default": "0001"
+            },
+            "usb_interface": {
+              "type": "string",
+              "length": 16,
+              "default": "CDC"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              },
+              {
+                "name": "write",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "char",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "name": "available",
+                "return": "uint8_t",
+                "params": []
+              },
+              {
+                "name": "read",
+                "return": "char",
+                "params": []
+              }
+            ]
+          },
+          "requires": {}
+        }
+      }
+    },
+    "usb_cdc-stm32f103c8t6": {
+      "versions": {
+        "1.0.0": {
+          "kind": "driver",
+          "chip": "stm32f103c8t6",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/usb_cdc-stm32f103c8t6-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/usb_cdc-stm32f103c8t6-1.0.0.tar.gz.sig",
+          "sha256": "6f0eb7e05a14dccda59b18d718c4de108344ea14508b0291279ae29e25eae42c",
+          "size": 31188,
           "license": "MIT",
           "description": "USB CDC ACM virtual COM port for STM32F103C8T6",
           "config": {
@@ -658,64 +606,6 @@
                 "name": "read",
                 "return": "char",
                 "params": []
-              }
-            ]
-          },
-          "requires": {}
-        }
-      }
-    },
-    "time": {
-      "versions": {
-        "1.0.0": {
-          "kind": "driver",
-          "developer": "xzc",
-          "url": "{baseurl}/xzc/time-1.0.0.tar.gz",
-          "sig_url": "{baseurl}/xzc/time-1.0.0.tar.gz.sig",
-          "sha256": "27574853631412237c82ef06a5ee85c87b9ae5543009066b10dd25cd45688106",
-          "size": 1306,
-          "license": "MIT",
-          "description": "Timer based precise delay driver",
-          "config": {
-            "osc_hz": {
-              "type": "int",
-              "default": "11059200"
-            },
-            "clock_mode": {
-              "type": "int",
-              "default": "12"
-            },
-            "timer_id": {
-              "type": "int",
-              "default": "1"
-            }
-          },
-          "provides": {
-            "methods": [
-              {
-                "name": "init",
-                "return": "int",
-                "params": []
-              },
-              {
-                "name": "delay_ms",
-                "return": "void",
-                "params": [
-                  {
-                    "type": "unsigned int",
-                    "name": "ms"
-                  }
-                ]
-              },
-              {
-                "name": "on_tick",
-                "return": "void",
-                "params": [
-                  {
-                    "type": "void (*)(void)",
-                    "name": "callback"
-                  }
-                ]
               }
             ]
           },
