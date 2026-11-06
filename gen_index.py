@@ -177,18 +177,14 @@ def load_domain_config():
 
         entry = {
             "index": info.get("index", ""),
-            "official_pub": info.get("official_pub", ""),
-            "official_pub_sig": info.get("official_pub_sig", ""),
+            "cert": info.get("cert", ""),
         }
 
         if not entry["index"]:
             print(f"  warn: 域 {name} 缺少 index 字段")
             continue
-        if not entry["official_pub"]:
-            print(f"  warn: 域 {name} 缺少 official_pub 字段")
-            continue
-        if not entry["official_pub_sig"]:
-            print(f"  warn: 域 {name} 缺少 official_pub_sig 字段")
+        if not entry["cert"]:
+            print(f"  warn: 域 {name} 缺少 cert 字段")
             continue
 
         result[name] = entry
@@ -225,21 +221,16 @@ def main():
         dev_name = entry.name
         print(f"\n开发者: {dev_name}")
 
-        pub = entry / f"{dev_name}.pub"
-        pub_sig = entry / f"{dev_name}.pub.sig"
+        cert = entry / f"{dev_name}.crt"
 
-        if not pub.exists():
-            print(f"  warn: 缺少公钥 {pub}")
-            continue
-        if not pub_sig.exists():
-            print(f"  warn: 缺少公钥签名 {pub_sig}")
+        if not cert.exists():
+            print(f"  warn: 缺少开发者证书 {cert}")
             continue
 
         developers[dev_name] = {
-            "pub": f"{{baseurl}}/{dev_name}/{dev_name}.pub",
-            "pub_sig": f"{{baseurl}}/{dev_name}/{dev_name}.pub.sig",
+            "cert": f"{{baseurl}}/{dev_name}/{dev_name}.crt",
         }
-        print(f"  ok: 公钥 + 签名")
+        print(f"  ok: 开发者证书")
 
         for tar in sorted(entry.glob("*.tar.gz")):
             if tar.name.endswith(".sig"):
@@ -298,8 +289,8 @@ def main():
 
     # 3. 写 index.json
     index = {
-        "schema": 1,
-        "official_pub": "{baseurl}/official.pub",
+        "schema": 2,
+        "official_cert": "{baseurl}/official.crt",
         "developers": developers,
         "domains": domains,
         "packages": packages,
