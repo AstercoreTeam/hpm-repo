@@ -1,17 +1,15 @@
 {
-  "schema": 1,
-  "official_pub": "{baseurl}/official.pub",
+  "schema": 2,
+  "official_cert": "{baseurl}/official.crt",
   "developers": {
     "xzc": {
-      "pub": "{baseurl}/xzc/xzc.pub",
-      "pub_sig": "{baseurl}/xzc/xzc.pub.sig"
+      "cert": "{baseurl}/xzc/xzc.crt"
     }
   },
   "domains": {
     "qincnd": {
       "index": "https://raw.githubusercontent.com/qincnd/hpm-repo/main/index.json",
-      "official_pub": "https://raw.githubusercontent.com/qincnd/hpm-repo/main/official.pub",
-      "official_pub_sig": "https://raw.githubusercontent.com/qincnd/hpm-repo/main/official.pub.sig"
+      "cert": "https://raw.githubusercontent.com/qincnd/hpm-repo/main/official.crt"
     }
   },
   "packages": {
