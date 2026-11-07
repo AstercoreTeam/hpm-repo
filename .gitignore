@@ -1,0 +1,6 @@
+# 私钥与构建产物
+*.key
+publish/
+__pycache__/
+*.pyc
+.pytest_cache/

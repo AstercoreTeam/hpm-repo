@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""hrm - HPM Repo Manager
+
+仓库维护工具入口。仓库根目录为本文件所在目录的上一级
+（即 <repo>/repo-tool/hrm）。
+"""
+
+import sys
+from pathlib import Path
+
+
+def _bootstrap() -> None:
+    # 允许直接运行：<repo>/repo-tool/hrm
+    tool_dir = Path(__file__).resolve().parent
+    if str(tool_dir) not in sys.path:
+        sys.path.insert(0, str(tool_dir))
+
+
+def main() -> int:
+    _bootstrap()
+    from hpmrepo.app import main as app_main
+
+    return app_main()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
