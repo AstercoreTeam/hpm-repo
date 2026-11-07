@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "kind": "developer",
+  "name": "xzc-test",
+  "san": "hpm://developer/xzc-test",
+  "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEANTL2e4SJYfjbbo+ghv8dVw8K7nf1TrUDBUuKTT3O+pw=\n-----END PUBLIC KEY-----\n",
+  "csr": "-----BEGIN CERTIFICATE REQUEST-----\nMIHlMIGYAgEAMC8xHzAdBgNVBAMMFkhQTSBEZXZlbG9wZXIgeHpjLXRlc3QxDDAK\nBgNVBAoMA0hQTTAqMAUGAytlcAMhADUy9nuEiWH4226PoIb/HVcPCu539U61AwVL\nik09zvqcoDYwNAYJKoZIhvcNAQkOMScwJTAjBgNVHREEHDAahhhocG06Ly9kZXZl\nbG9wZXIveHpjLXRlc3QwBQYDK2VwA0EA9OylFXilO6VRgksXO/HYLtTLSVgux8ja\nxXqWaqH6gjVvxpvySwbaqNw1P+d1GQDbHv1aIwbgH3gCL/EL4tqOCA==\n-----END CERTIFICATE REQUEST-----\n",
+  "email": "2636670638@qq.com",
+  "githubUrl": "https://github.com/xzc842",
+  "createdAt": "2026-11-07T04:43:12Z",
+  "nonce": "ni/X7xbfaUwjk0DodZ4+eQ==",
+  "selfSignature": "fGRWeZ1W0p6fluoOnv3ibt0YbajDVRkCo4g0GTMaeDAcyKWCCPyOFn1uepopZmjg+GspLSqS2tJt+wVlI3ZgDA=="
+}

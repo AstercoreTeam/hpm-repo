@@ -35,12 +35,19 @@ Token
   登录由 hpm-dev login 完成，登录成功后需要重新进入本工具或按 r 刷新。
   官方仓库完全免登录。
 
+签名请求
+  主页「生成签名请求」或登录页按 g（无需登录）。
+  请求写入 repo-tool/requests/，管理员签发时直接显示列表。
+  新私钥自动保存到 ~/.hpm/keys/，必须设置至少 8 位密码。
+
 签名
-  需要私钥时依次查找：
-    official.key                   仓库根目录
-    <dev>/<dev>.key                开发者目录
-    ~/.hpm/keys/<dev>/<dev>.key    用户密钥目录
-  找不到会要求输入路径；私钥有密码会要求输入密码（最多 3 次）。
+  私钥只从用户目录 ~/.hpm 下查找：
+    ~/.hpm/keys/official.key               官方仓库私钥
+    ~/.hpm/keys/domain/<domain>/official.key  域私钥
+    ~/.hpm/keys/dev/<dev>/<dev>.key           开发者私钥
+  旧布局 ~/.hpm/keys/<name>/ 仍兼容读取。
+  仓库目录中不再查找私钥；找不到会要求输入路径。
+  支持 PEM 与 OpenSSH 私钥；有密码会要求输入密码（最多 3 次）。
   密码只保存在内存，可用「设置」清空缓存。
 
 目录约定

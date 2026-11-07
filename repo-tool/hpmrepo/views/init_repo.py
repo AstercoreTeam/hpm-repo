@@ -5,7 +5,15 @@ from __future__ import annotations
 
 import re
 
-from ..core import crypto, developers as dev_mod, gitops, index as index_mod, revoke
+from ..core import (
+    crypto,
+    developers as dev_mod,
+    domains as domains_mod,
+    gitops,
+    index as index_mod,
+    keys as keys_mod,
+    revoke,
+)
 from ..repo import Role, detect
 from ..tui.screen import Screen, ellipsize, st
 from ..tui.widgets import draw_footer, draw_title
@@ -13,7 +21,12 @@ from ..util import log
 from ..util.fs import atomic_write, ensure_private
 from ..util.jsonc import dumps
 from .base import View
-from .common import commit_ui, official_key_ui
+from .common import (
+    ask_password_pair,
+    commit_ui,
+    load_key_with_password,
+    official_key_ui,
+)
 
 DOMAIN_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 
@@ -123,58 +136,57 @@ class InitRepoView(View):
         if remote is None:
             return
 
-        password = self._ask_password()
-        if password is None:
-            return
+        key_path = keys_mod.official_key_path(domain)
+        existing_key = None
+        password: str | None = None
+        if key_path.is_file():
+            if app.confirm(
+                "复用官方私钥",
+                [
+                    f"检测到已存在的私钥: {key_path}",
+                    "复用它生成签名请求吗？（推荐使用「生成签名请求」时创建的密钥）",
+                ],
+            ):
+                existing_key = load_key_with_password(app, key_path, domain)
+                if existing_key is None:
+                    return
+        if existing_key is None:
+            password = self._ask_password()
+            if password is None:
+                return
 
         summary = [
             f"目录: {ctx.root}",
             f"域名: {domain}",
             f"邮箱: {email or '-'}",
             f"远程: {remote or '暂不配置'}",
-            f"私钥密码: {'已设置' if password else '空密码（不推荐）'}",
+            f"私钥: {key_path}",
+            f"私钥密码: {'复用已有密钥' if existing_key is not None else ('已设置' if password else '空密码（不推荐）')}",
             "",
             "确认开始初始化？",
         ]
         if not app.confirm("初始化私域仓库", summary):
             return
 
-        self._execute(domain, email, remote, password)
+        self._execute(domain, email, remote, password or "", existing_key=existing_key)
         self.done = True
         app.home()
 
     def _ask_password(self) -> str | None:
-        for attempt in range(3):
-            first = self.app.input(
-                "私钥密码",
-                "为 official.key 设置密码（至少 8 位，可留空）",
-                mask=True,
-                hint="密码只保存在内存，不写入磁盘 · Esc 取消",
-            )
-            if first is None:
-                return None
-            if len(first) < 8:
-                if not self.app.confirm(
-                    "密码过短",
-                    [
-                        "密码少于 8 位，私钥保护强度不足。",
-                        "仍然使用这个密码吗？",
-                    ],
-                    danger=True,
-                ):
-                    continue
-            second = self.app.input(
-                "确认密码", "请再次输入密码", mask=True, hint="Esc 取消"
-            )
-            if second is None:
-                return None
-            if first != second:
-                self.app.error("两次输入的密码不一致")
-                continue
-            return first
-        return None
+        return ask_password_pair(
+            self.app,
+            "私钥密码",
+            "请为 official.key 设置密码（至少 8 位）",
+        )
 
-    def _execute(self, domain: str, email: str, remote: str, password: str) -> None:
+    def _execute(
+        self,
+        domain: str,
+        email: str,
+        remote: str,
+        password: str,
+        existing_key=None,
+    ) -> None:
         app = self.app
         ctx = app.ctx
         root = ctx.root
@@ -200,22 +212,46 @@ class InitRepoView(View):
         if not (root / "README.md").exists():
             atomic_write(root / "README.md", ABOUT, mode=0o644)
 
-        # 2. 密钥
-        private_pem, public_pem = crypto.generate_ed25519_keypair(password or None)
-        atomic_write(ctx.official_key_path, private_pem, mode=0o600)
-        ensure_private(ctx.official_key_path)
-        atomic_write(root / "official.pub", public_pem, mode=0o644)
+        # 2. 密钥：只保存在 ~/.hpm/keys/domain/<domain>/official.key
+        key_path = keys_mod.official_key_path(domain)
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            import os
 
-        # 3. 签名请求
-        key = crypto.load_private_key(ctx.official_key_path, password or None)
+            os.chmod(key_path.parent, 0o700)
+        except OSError:
+            pass
+        if existing_key is not None:
+            key = existing_key
+            public_pem = crypto.public_key_pem(key)
+        else:
+            private_pem, public_pem = crypto.generate_ed25519_keypair(password or None)
+            atomic_write(key_path, private_pem, mode=0o600)
+            ensure_private(key_path)
+            key = crypto.load_private_key(key_path, password or None)
+        atomic_write(root / "official.pub", public_pem, mode=0o644)
+        # 同名 .pub 放在私钥旁边，便于多密钥时自动匹配 official.crt
+        atomic_write(key_path.with_suffix(".pub"), public_pem, mode=0o644)
+
+        # 3. 签名请求（根目录留一份，同时放入工具请求目录）
+        github = app.dev.github_url if app.dev else ""
+        repo_url = remote or (app.dev.repo_url if app.dev else "")
+        index_url, cert_url = domains_mod.derive_urls(repo_url, github)
         req = dev_mod.build_request(
             key,
             kind="domain",
             name=domain,
             email=email,
-            github_url=(app.dev.github_url if app.dev else ""),
+            github_url=github,
+            repo_url=repo_url,
+            index_url=index_url,
+            cert_url=cert_url,
         )
         json_path, txt_path = dev_mod.write_request(root, req, stem="official")
+        inbox = ctx.inbox_dir
+        inbox.mkdir(parents=True, exist_ok=True)
+        atomic_write(inbox / f"domain-{domain}.request.json", json_path.read_bytes())
+        atomic_write(inbox / f"domain-{domain}.request.txt", txt_path.read_bytes())
 
         # 4. 空索引与吊销列表
         index_mod.write_empty_index(root)
@@ -295,7 +331,7 @@ class FinishInitView(View):
         lines.append(f"index.json.sig: {'存在' if ctx.index_sig_path.is_file() else '缺失'}")
         lines.append(f"revoke.json: {'存在' if ctx.revoke_path.is_file() else '缺失'}")
         lines.append(f"revoke.json.sig: {'存在' if ctx.revoke_sig_path.is_file() else '缺失'}")
-        lines.append(f"official.key: {'存在' if ctx.official_key_path.is_file() else '缺失'}")
+        lines.append(f"official.key: {keys_mod.find_official(ctx.domain, ctx.official_cert_path) or '缺失'}")
         return lines
 
     def render(self, screen: Screen) -> None:

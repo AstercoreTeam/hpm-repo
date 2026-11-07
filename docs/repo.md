@@ -42,6 +42,7 @@ hpm-repo/
 │   └── ch552g-1.0.0.tar.gz.sig
 ├── domain.yaml                 域配置
 ├── repo-tool/                  维护工具 hrm（./repo-tool/hrm）
+│   └── requests/               待处理签名请求（未登录也可提交）
 └── toolchains/
 ```
 
@@ -114,12 +115,14 @@ developer.crt（开发者证书）
 - 私域仓库：Token 来自 `~/.hpm/dev.json`；没有 Token 时主页只显示登录。
 - 登录：调用 `hpm-dev login`，本工具不接触 AppKey、不写 `dev.json`。
 - 初始化私域仓库：生成 Git 仓库、加密的 official Ed25519 密钥、`official.request.json`。
-- 管理开发者：校验 `incoming/*.request.json` 后签发证书，写 `<developer>/<developer>.crt`。
+- 生成签名请求：未登录也可生成 domain/developer 请求，写入 `repo-tool/requests/`。
+- 管理开发者：读取 `repo-tool/requests/*.request.json`（兼容旧 `incoming/`）后签发证书，写 `<developer>/<developer>.crt`。
+- 私域管理：官方仓库主页主菜单提供私域列表、签发证书、吊销证书；域证书签发不再放在「管理开发者」。
 - 吊销：写根目录 `revoke.json` 与 `revoke.json.sig`。
 - 重建索引：索引扫描逻辑已并入 hrm，仓库不再需要 `gen_index.py`。
 
-签名时按 `official.key` → `<developer>/<developer>.key` → `~/.hpm/keys/<developer>/` 查找私钥；
-找不到会要求输入路径，加密私钥会提示密码。
+私钥只从用户目录 `~/.hpm` 查找：`~/.hpm/keys/official.key`、`~/.hpm/keys/domain/<domain>/official.key`、`~/.hpm/keys/dev/<developer>/<developer>.key`；旧布局仍兼容读取；
+仓库目录中不再查找私钥。找不到会要求输入路径，加密私钥会提示密码。
 
 ## 六、发布新包
 

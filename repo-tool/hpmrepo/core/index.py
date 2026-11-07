@@ -103,33 +103,9 @@ def _parse_filename(name: str) -> tuple[str | None, str | None, str | None]:
 
 
 def _load_domains(root: Path) -> dict[str, Any]:
-    path = Path(root) / "domain.yaml"
-    if not path.is_file():
-        return {}
-    try:
-        import yaml  # type: ignore
-    except ImportError as exc:  # pragma: no cover
-        raise RepoError(
-            "需要 PyYAML 才能读取 domain.yaml",
-            "pip3 install pyyaml",
-        ) from exc
-    try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except Exception as exc:  # noqa: BLE001
-        raise RepoError("读取 domain.yaml 失败", str(exc)) from exc
-    domains = data.get("domains", {})
-    if not isinstance(domains, dict):
-        raise RepoError("domain.yaml 的 domains 字段必须是对象")
-    result: dict[str, Any] = {}
-    for name, info in domains.items():
-        if not isinstance(info, dict):
-            continue
-        index = info.get("index", "")
-        cert = info.get("cert", "")
-        if index and cert:
-            result[name] = {"index": index, "cert": cert}
-    return result
+    from .domains import load_domain_config
 
+    return load_domain_config(root)
 
 def build_index(root: Path) -> dict[str, Any]:
     root = Path(root)

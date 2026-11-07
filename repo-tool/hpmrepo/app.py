@@ -68,6 +68,8 @@ class App:
         from .views.home import HomeView
 
         self.reload()
+        # 回到主页视为一次操作结束，清除会话内已解密私钥，下次签名重新要求密码
+        self.clear_key_cache()
         self.stack = [HomeView(self)]
         self.screen.invalidate()
 
@@ -253,11 +255,13 @@ class App:
                 options=options,
                 cursor=cursor,
                 hint=hint or "↑↓ 选择 · Enter 确认 · Esc 取消",
+                vertical_options=True,
             )
             self.screen.flush()
             key = self.terminal.read_key(0.2)
             if key is None:
                 continue
+            hold_until = time.monotonic() + 0.4
             if key.name == "esc":
                 return None
             if key.name in ("up", "left"):
@@ -279,11 +283,12 @@ class App:
         text = list(default)
         cursor = len(text)
         prompt_lines = wrap_text(prompt, max(20, min(70, self.screen.w - 10)))
+        hold_until = time.monotonic() + 0.5
 
         while True:
             width = min(74, self.screen.w - 4)
             inner = width - 6
-            height = len(prompt_lines) + 5
+            height = len(prompt_lines) + 6
             x, y, w, h = modal_geometry(self.screen, width, height)
             self._redraw_current()
             self.screen.fill(x + 1, y + 1, w - 2, h - 2, st(fg="text", bg="modal"))
@@ -309,7 +314,12 @@ class App:
             cursor_x = x + 3 + text_width(
                 ("•" * cursor) if mask else "".join(text[:cursor])
             )
-            self.screen.cursor = (min(cursor_x, x + w - 3), row)
+            # 软件闪烁：输入后短暂常亮，其余时间约 0.5s 切换一次
+            now = time.monotonic()
+            visible = now < hold_until or int(now * 2) % 2 == 0
+            self.screen.cursor = (
+                (min(cursor_x, x + w - 3), row) if visible else None
+            )
             if hint:
                 self.screen.put(
                     x + 3,
@@ -322,6 +332,7 @@ class App:
             key = self.terminal.read_key(0.2)
             if key is None:
                 continue
+            hold_until = time.monotonic() + 0.4
             if key.name == "esc":
                 return None
             if key.name == "enter":

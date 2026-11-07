@@ -95,7 +95,8 @@ hpm-repo/
 │   │   │   └── widgets.py        # 菜单/表格/弹窗/页脚
 │   │   ├── views/
 │   │   │   ├── base.py  splash.py  home.py  login.py
-│   │   │   ├── packages.py  developers.py
+│   │   │   ├── packages.py  developers.py  domains.py
+│   │   │   ├── request.py
 │   │   │   ├── init_repo.py  settings.py  help.py  common.py
 │   │   ├── core/
 │   │   │   ├── crypto.py         # 密钥/CSR/证书/签名
@@ -103,6 +104,7 @@ hpm-repo/
 │   │   │   ├── packages.py       # 包扫描/签名/入库/删除
 │   │   │   ├── developers.py     # 请求校验、证书签发
 │   │   │   ├── revoke.py         # revoke.json
+│   │   │   ├── domains.py        # domain.yaml / outgoing 域列表
 │   │   │   ├── keys.py  auth.py  gitops.py  verify.py
 │   │   └── util/
 │   │       ├── shell.py  fs.py  jsonc.py  log.py  errors.py
@@ -160,6 +162,8 @@ hpm-repo/
 ├──────────────────────────────────────────────────────────────────────┤
 │    ▸ 管理包                                                          │
 │      管理开发者                                                      │
+│      私域管理                                                        │
+│      生成签名请求                                                    │
 │      设置 / 诊断                                                     │
 │      退出                                                            │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -177,6 +181,7 @@ hpm-repo/
 │ Token: 有效 (剩 23h)   证书: 有效(1824天)   Git: 干净 ↑0 ↓0          │
 ├──────────────────────────────────────────────────────────────────────┤
 │    ▸ 登录开发者中心（重新登录 / 切换账号）                            │
+│      生成签名请求                                                    │
 │      管理包                                                          │
 │      管理开发者                                                      │
 │      设置 / 诊断                                                     │
@@ -184,10 +189,12 @@ hpm-repo/
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**无 Token 且需要登录时**（私域/未初始化仓库）：主页**只保留登录与退出**（以及帮助），其余选项不渲染：
+**无 Token 且需要登录时**（私域/未初始化仓库）：仍保留「生成签名请求」，管理员之外的
+用户无需登录即可提交请求：
 
 ```
 │    ▸ 登录开发者中心                                                  │
+│      生成签名请求                                                    │
 │      退出                                                            │
 ```
 
@@ -213,7 +220,7 @@ hpm-repo/
 - 列表/表格：`PgUp/PgDn`、`Home/End`，`/` 过滤，`r` 刷新。
 - 输入框：行编辑（左右、Home/End、Backspace/Delete、Ctrl-U/Ctrl-W），`Esc` 取消，`Enter` 提交。
 - 密码框：掩码显示，无回显；支持从环境变量/文件读取（见 §7.4）。
-- 弹窗：确认框默认焦点在「取消」；危险操作（吊销、删除、强推）需二次确认。
+- 弹窗：选择列表纵向排列（↑↓ 移动）；确认框默认焦点在「取消」；危险操作需二次确认。
 - `?`：帮助页列出所有快捷键；底部状态栏始终显示当前可用键。
 
 ### 4.5 界面清单
@@ -272,7 +279,7 @@ def token_state(cfg) -> Literal["missing", "expired", "valid"]:
 
 | 状态 | 顶栏 | 主页行为 |
 |------|------|----------|
-| `missing` | `Token: 未登录` | 私域/未初始化仓库：只显示登录与退出；官方仓库：不显示 Token 行 |
+| `missing` | `Token: 未登录` | 私域/未初始化仓库：登录、生成签名请求、退出；官方仓库：不显示 Token 行 |
 | `expired` | `Token: 已过期 (日期)` | 同上，登录项文案改为「重新登录」 |
 | `valid` | `Token: 有效 (剩 n 小时)` | 显示完整菜单 |
 
@@ -292,15 +299,21 @@ def token_state(cfg) -> Literal["missing", "expired", "valid"]:
 ├── index.json / index.json.sig
 ├── revoke.json / revoke.json.sig           # 新增，见 §8
 ├── official.crt                            # 角色判定的唯一依据
-├── official.key                            # 私钥，0600，gitignore
 ├── domain.yaml                             # 仅官方仓库维护域列表
 ├── <developer>/
 │   ├── <developer>.crt
-│   ├── <developer>.key                     # 可选，本地私钥，gitignore
 │   └── <pkg>-<chip>-<ver>.tar.gz(+.sig)
-├── incoming/                               # 待处理的签名请求，gitignore
 ├── requests/                               # 已处理请求归档
 └── publish/                                # hpm-dev 产物，gitignore
+
+~/.hpm/keys/
+├── official.key                            # 官方仓库私钥（0600）
+├── domain/<domain>/official.key            # 域私钥（0600）
+└── dev/<developer>/<developer>.key         # 开发者私钥（0600）
+
+repo-tool/requests/                         # 待处理签名请求（未登录可提交）
+├── domain-<name>.request.json
+└── developer-<name>.request.json
 ```
 
 #### 5.3.1 角色判定（证书）
@@ -347,7 +360,8 @@ def detect_role(repo) -> Role:
 | 登录/Token 检查 | 不需要 | 需要 | 需要（用于取得 repoUrl） |
 | 管理包 / 重建索引 / 签索引 | 是 | 是 | 否 |
 | 添加开发者（签开发者证书） | 是 | 是 | 否 |
-| 签发域证书 | 是 | 否 | 否 |
+| 私域管理（列表/签发/吊销域证书） | 是 | 否 | 否 |
+| 生成签名请求（登录/未登录/登录页均可） | 是 | 是 | 是 |
 | 初始化私域仓库 | 否 | 否 | 是（有 Token 后） |
 | 远程地址来源 | `git remote -v` | `dev.json.repoUrl`（默认）/ `git remote` | `dev.json.repoUrl`（默认）/ 手输 |
 
@@ -367,9 +381,19 @@ def detect_role(repo) -> Role:
   "githubUrl": "https://github.com/xzc842",
   "createdAt": "2026-11-07T03:20:00Z",
   "nonce": "base64(16B)",
-  "selfSignature": "base64(Ed25519(canonical_json_without_this_field))"
+  "selfSignature": "base64(Ed25519(canonical_json_without_this_field))",
+
+  "repoUrl": "https://github.com/alice/hpm-repo",              // domain 可选
+  "indexUrl": "https://raw.githubusercontent.com/alice/hpm-repo/main/index.json",
+  "certUrl": "https://raw.githubusercontent.com/alice/hpm-repo/main/official.crt"
 }
 ```
+
+生成方式：主页「生成签名请求」或登录页按 `g`（均不要求登录），选择 domain/developer，
+填写名称/邮箱/GitHub，生成或选择私钥后写入 `repo-tool/requests/<kind>-<name>.request.json`
+（同目录 `.txt` 为人读版本）。生成的私钥自动保存到 `~/.hpm/keys/`，且必须设置密码。
+管理员签发时**直接显示该目录的请求列表**，目录为空只显示提示，不弹出路径输入框；
+也兼容旧的仓库根 `incoming/`。
 
 校验项：
 
@@ -385,8 +409,13 @@ def detect_role(repo) -> Role:
 ### 5.5 密钥
 
 - 算法：Ed25519（与现有 `official.crt`、`xzc.crt` 一致）；读取时自动识别 RSA/ECDSA 并走 SHA-256 分支。
-- 容器：PKCS#8 PEM；初始化时用用户密码加密（AES-256-CBC + PBKDF2），无密码的旧密钥也兼容。
-- 位置优先级：签发流程中用户显式选择/输入的路径 → 仓库根 `official.key` → `<developer>/<developer>.key` → `~/.hpm/keys/<developer>/<developer>.key` → 让用户输入路径。
+- 容器：优先 PKCS#8 PEM；读取兼容传统 OpenSSL 加密 PEM 与 OpenSSH 私钥（含 bcrypt 加密），初始化时用用户密码加密（AES-256-CBC + PBKDF2）。
+- 位置：只从 `~/.hpm` 查找，仓库目录不再保存私钥：
+  - `~/.hpm/keys/official.key`（官方仓库）
+  - `~/.hpm/keys/domain/<domain>/official.key`（域私钥）
+  - `~/.hpm/keys/dev/<developer>/<developer>.key`（开发者）
+  - 旧布局 `~/.hpm/keys/<name>/...` 作为兼容回退
+  - 找不到时要求用户输入路径（默认仍为上述位置）。
 - 权限：生成后立即 `chmod 600`；发现权限过宽时警告并可一键修正。
 
 ---
@@ -430,40 +459,45 @@ def detect_role(repo) -> Role:
 
 1. **前置检查**：`official.crt` 与 `index.json` 均不存在；已有 `.git`、`repo-tool/`、`README.md`、`LICENSE`、设计文档直接沿用，其他文件不会阻止初始化。
 2. **域信息**：域名 `name`（默认取 `dev.json.developer` 或 GitHub 用户名，允许修改）、显示名、邮箱；远程地址默认 `dev.json.repoUrl`（登录时已确认），可编辑或跳过。
-3. **生成密钥**：`official.key`（Ed25519，加密）+ `official.pub`；密码两次输入、强度检查（≥8 位），可留空但强警告；生成后 `0600`。
+3. **生成密钥**：`~/.hpm/keys/domain/<domain>/official.key`（Ed25519，加密）+ 仓库内 `official.pub`；必须设置密码（两次输入，至少 8 位）；生成后 `0600`。若该位置已有密钥（例如先用「生成签名请求」创建过），提示复用，避免请求与密钥不匹配。
 4. **写骨架**：`git init -b main`、`.gitignore`（`*.key`、`publish/`、`incoming/`、`__pycache__/`、`.hpm/`）、`README.md`、空 `revoke.json`（暂不签，见第 7 步）、空 `index.json`；把工具自身文件一并纳入首次提交。
-5. **生成签名请求**：`official.request.json` + `official.request.txt`，`kind=domain`，`san=hpm://domain/<name>`；提示用户通过邮件/Issue/IM 发给官方。
+5. **生成签名请求**：`official.request.json` + `official.request.txt`，`kind=domain`，`san=hpm://domain/<name>`；同时复制到 `repo-tool/requests/`，方便管理员直接读取。
 6. **配置远程并提交**：`git remote add origin <url>`（可跳过）→ 首次提交（不含私钥）→ 是否立即 push 由用户决定。
 7. **等待签发**：主页出现「完成初始化」入口；索引签名功能在证书到位前不可用。此时不写 `dev.json`，不假装初始化完成。
 8. **收到证书后**（用户把官方发回的 `official.crt` 放到根目录，或走「导入证书」）：校验 SAN/签发者/有效期 → `git add` → 用 official 私钥签 `index.json` 与 `revoke.json` → 再提交推送；角色变为 `PRIVATE`，完整菜单展开。
 
 > 为什么第 8 步才签索引：`index.json.sig` 必须能由 `official.crt` 验证，而 `official.crt` 在第 8 步才存在。`pending_cert` 状态下禁用索引签名，避免产出无法验证的签名。
 >
-> 为什么初始化需要 Token：远程地址与开发者身份来自 `dev.json`（由 `hpm-dev login` 写入）。没有 Token 时主页只保留登录入口。
+> 为什么初始化需要 Token：远程地址与开发者身份来自 `dev.json`（由 `hpm-dev login` 写入）。没有 Token 时主页仍保留登录与「生成签名请求」入口。
 
 ### 6.4 管理开发者（S6/S7）
 
 列表字段：开发者、证书 SAN、序列号、有效期、吊销状态、包数量、密钥是否存在。
 
-- 官方仓库：可签发开发者证书与域证书；
-- 私域仓库：只可签发开发者证书；「签发域证书」菜单不渲染；
+- 官方仓库：可签发开发者证书；域证书相关操作统一放到**主页主菜单**「私域管理」；
+- 私域仓库：只可签发开发者证书；
 - 未初始化/证书异常：该菜单不渲染。
 
 **添加开发者（核心流程）**
 
-1. 选择请求：扫描 `incoming/*.request.json`（也允许手输路径/粘贴 JSON）。
+1. 选择请求：直接显示 `repo-tool/requests/*.request.json`（兼容旧 `incoming/`）的 kind/name/时间列表；目录为空时只提示，不提供路径输入弹窗。
 2. 严格校验 §5.4 的 6 项；任一失败 → 展示具体原因与「查看原始请求」，不允许继续。
 3. 预览：姓名、SAN、公钥指纹、CSR 指纹、请求时间、邮箱；重复公钥/已存在证书时提示（可选择覆盖＝重签并吊销旧证书）。
 4. 读取 official 密钥：按 §5.5 定位；缺失 → 输入路径（Tab 补全）；加密 → 密码输入（3 次机会）。
 5. 签发证书（§7.3）：随机 128-bit 序列号、有效期 3 年、`CN=HPM Developer <name>`、`O=HPM`、SAN URI、`basicConstraints=CA:false`、`keyUsage=digitalSignature`、`subjectKeyIdentifier`。
-6. 落盘：`<developer>/<developer>.crt`（0644），请求归档到 `requests/<name>-<serial>.request.json`，从 `incoming/` 移除。
+6. 落盘：`<developer>/<developer>.crt`（0644），请求归档到仓库根 `requests/<name>-<serial>.request.json`，从 `repo-tool/requests/` 或 `incoming/` 移除。
 7. 重建索引并签名（可选，默认做）：调用 `index.rebuild()` + `index.sign()`。
 8. 导出回执：`<name>.crt` 与 `cert-receipt.json`（含序列号、指纹、有效期），提示通过原渠道发回；界面展示「证书已生成，可发送给开发者」。
 9. 提交：`git add` 证书/索引/吊销文件，提交信息模板 `Add developer <name> (serial <hex>)`；推送需确认。
 
 **吊销开发者证书（S9）**：选择开发者或证书文件 → 显示序列号/指纹 → 原因（keyCompromise/superseded/ceased/unspecified）→ 二次确认 → 写 `revoke.json`、签 `revoke.json.sig`、可选删除证书文件（保留更安全，默认保留）、重建/签索引、提交。拒绝吊销自己正在使用的 official 证书。
 
-**签发域证书**（仅官方仓库显示）：与添加开发者同构，`kind=domain`，SAN `hpm://domain/<name>`，证书回执交给域管理员；随后可选在 `domain.yaml` 增加域条目并推送，使主索引 `domains` 生效。
+**私域管理**（仅官方仓库，主页主菜单）包含三个入口：
+
+- **私域列表**：读取 `domain.yaml` 与 `outgoing/*.crt`，显示域名、登记状态、序列号、剩余天数、本地证书；Enter 查看索引/证书 URL、指纹等详情。
+- **签发证书**：读取 `repo-tool/requests/` 中的 domain 请求（无请求只提示），签发后写 `outgoing/<domain>.crt` 与回执；请求带 `indexUrl`/`certUrl` 时自动写入 `domain.yaml`、重建并签名主索引，否则提示未登记。
+- **登记证书**：对“已签发，未登记”的域证书补填索引/证书 URL，写 `domain.yaml` 并重签索引。
+- **吊销证书**：列出 `outgoing/` 中的域证书，写 `revoke.json` 并重新签名。
 
 ### 6.5 管理包（S3/S4/S5）
 
@@ -544,18 +578,18 @@ openssl pkeyutl -verify -pubin -inkey official.pub -rawin -in index.json -sigfil
 ### 7.4 密钥定位与密码输入（所有签名操作的统一入口）
 
 ```
-resolve_key(purpose: "official" | "developer:<name>", cli_path=None) -> Path
-  ├─ 候选路径依次尝试（§5.5）
-  ├─ 都不存在 → 输入框：请输入私钥路径（Tab 补全，Esc 取消）
+resolve_key(purpose: "official" | "developer:<name>") -> Path
+  ├─ 只从 ~/.hpm/keys 的约定路径查找（§5.5）
+  ├─ 都不存在 → 输入框：请输入私钥路径（Esc 取消）
   ├─ 文件存在但格式非法 → 明确报错，不重试覆盖
   └─ 返回路径
 
 load_key_with_password(path) -> Key
   ├─ 先尝试无密码加载
+  ├─ 若未加密 → 询问是否设置密码并加密保存（可跳过，继续使用未加密私钥）
   ├─ 若加密 → 密码框（掩码，3 次机会），支持：
   │    · 会话内缓存（默认开启，退出即清空；设置页可关）
-  │    · 环境变量 HPM_KEY_PASSWORD（CI 用，启动时警告）
-  │    · --password-stdin（无头模式）
+  │    · 环境变量 HPM_KEY_PASSWORD（CI 用）
   ├─ 密码错误 → 剩余次数提示；3 次失败返回上层菜单，不清空文件
   └─ 成功后 chmod 600（若权限过宽则提示）
 ```
@@ -715,7 +749,7 @@ load_key_with_password(path) -> Key
 
 ### 12.4 验收标准
 
-- 在无 `dev.json` 的新机器上：官方仓库仍可直接启动并完整操作；私域仓库只显示登录入口；
+- 在无 `dev.json` 的新机器上：官方仓库仍可直接启动并完整操作；私域仓库显示登录与生成签名请求入口；
 - 登录一次后（`hpm-dev login` 成功）无需重启程序即可展开私域菜单；
 - 初始化全过程无需手工执行 openssl 命令；
 - 从「收到请求」到「证书出现在开发者目录并索引可验证」不超过 3 个界面操作；
@@ -735,7 +769,7 @@ load_key_with_password(path) -> Key
 | M5 | 包管理 + 索引重建/签名 + Git 发布向导 | 完成 |
 | M6 | 校验门禁、错误处理、测试与文档 | 完成 |
 
-测试：`python3 -m pytest -q`（13 项）与 `python3 tests/pty_smoke.py`（8 个 pty 场景）。
+测试：`python3 -m pytest -q`（22 项）与 `python3 tests/pty_smoke.py`（12 个 pty 场景）。
 
 ---
 
@@ -753,7 +787,7 @@ load_key_with_password(path) -> Key
 后续可做：
 
 - `hpm` 客户端实现 `revoke.json` 验签与吊销检查（§8.3）；当前客户端还没有相关逻辑。
-- 官方仓库签发域证书后，自动向 `domain.yaml` 追加域条目。
+- 域证书签发后自动登记已实现；仍可增加“从域名反查仓库 URL”的默认值增强。
 - Windows 终端（ConPTY/msvcrt）适配；当前主要面向 Linux/macOS。
 - 纯 OpenSSL 后端（无 `cryptography` 环境）。
 - 包删除/发布的操作审计与更细的权限控制。

@@ -36,7 +36,7 @@ class LoginView(View):
         if self.command:
             lines.append(f"将执行：{self.command.label}")
             lines.append("")
-            lines.append("按 Enter 开始登录，Esc 返回。")
+            lines.append("按 Enter 开始登录，g 生成签名请求（无需登录），Esc 返回。")
         else:
             lines.append(auth.hint())
             lines.append("")
@@ -45,13 +45,17 @@ class LoginView(View):
         for line in lines:
             screen.put(4, y, ellipsize(line, screen.w - 8), st(fg="text"))
             y += 1
-        draw_footer(screen, "Enter 开始登录 · Esc 返回 · r 重新探测")
+        draw_footer(screen, "Enter 开始登录 · g 生成签名请求 · Esc 返回 · r 重新探测")
 
     def handle_key(self, key) -> None:
         if key.name == "esc":
             self.app.pop()
         elif key.name == "char" and key.char == "r":
             self.command = auth.detect()
+        elif key.name == "char" and key.char == "g":
+            from .request import RequestView
+
+            self.app.push(RequestView(self.app))
         elif key.name == "enter":
             if self.command is None:
                 self.command = auth.detect()

@@ -39,7 +39,13 @@ repo-tool/
 │   │   ├── theme.py        256 色表、NO_COLOR
 │   │   └── widgets.py      菜单、表格、标题、页脚、弹窗
 │   ├── views/              界面与流程；只允许依赖 app + core + tui
-│   ├── core/               纯业务；禁止 import tui/views/app
+│   │   ├── request.py      生成签名请求（无需登录）
+│   │   ├── domains.py      私域管理（列表/签发/吊销）
+│   │   └── ...
+│   ├── core/
+│   │   ├── domains.py      domain.yaml / outgoing 域列表
+│   │   └── ...             纯业务；禁止 import tui/views/app
+│   └── requests/           待处理签名请求（运行时写入，默认 gitignore）
 │   └── util/               fs/json/shell/log/errors
 └── tests/                  pytest + pty 冒烟
 ```
@@ -199,7 +205,7 @@ wrap_text(text, width) -> list[str]
 | `core/revoke.py` | `issue`、`sign`、`verify`、`is_revoked` |
 | `core/gitops.py` | `status`、`add`、`commit`、`add_remote`、`push`、`is_ignored` |
 | `core/verify.py` | `run_all(ctx)`、`publish_gate(ctx)` |
-| `core/keys.py` | `find_official`、`find_developer`、`key_is_encrypted` |
+| `core/keys.py` | `find_official(domain)`、`find_developer(name)`、`official_key_path`、`developer_key_path`、`key_is_encrypted` |
 | `core/auth.py` | `detect()`：`HPM_DEV_BIN` → `hpm-dev login` → `hpm login` |
 
 所有路径参数都是显式的 `Path`，不依赖当前工作目录。
@@ -382,7 +388,29 @@ app.foo = args.foo
 - 保持 `enter()/exit()/size()/write()` 语义；
 - 不要在其它模块直接调用 `termios`。
 
-### 4.11 域证书签完后自动登记
+### 4.11 签名请求收件与签发
+
+- 收件目录：`repo.request_inbox()`（默认 `repo-tool/requests/`，`HPM_REQUESTS_DIR` 可覆盖）。
+- 生成：`views/request.py` → `developers.build_request()` + `developers.write_request()`；
+  新私钥固定保存到 `~/.hpm/keys/`，并通过 `ask_password_pair()` 强制设置密码。
+- 列出：`developers.list_request_summaries(root)` 返回 `PendingRequest(path, kind, name, valid, error)`，
+  损坏文件不会中断列表。
+- 签发：`resolve_request_path(app, ctx, kind=...)` **只从列表选择**，不再回退到路径输入框；
+  空目录时显示提示并返回。`issue_request()` 落盘证书并归档，同时从收件目录/旧 `incoming/` 删除请求。
+- 新增请求类型时，记得同步 `validate_request_data()`、`_san_for()`、`_common_name()` 与 UI 菜单。
+
+### 4.12 私域管理与域证书
+
+- 列表：`core/domains.py` 的 `list_domains(root)` 合并 `domain.yaml` 与 `outgoing/*.crt`，
+  返回 `DomainEntry(name, index, cert_url, local_cert, cert, registered, revoked)`。
+- 签发：`views/developers.py` 的 `sign_domain_wizard()`；只从请求列表选择。签发后如果有
+  `indexUrl`/`certUrl`，调用 `domains.register_domain()` 写入 `domain.yaml`，再重建/签名索引。
+- 登记：`views/domains.py` 的 `register_domain_wizard()`，用于补登记已签发证书。
+- URL 推导：`domains.derive_urls(repo_url, github_url)`。
+- 吊销：`views/domains.py` 的 `revoke_domain_wizard()`，写 `kind="domain"` 的 `revoke.json` 记录。
+- 新增域相关操作时放在 `DomainManagementView`，不要塞回「管理开发者」。
+
+### 4.13 域证书签完后自动登记
 
 目前 `sign_domain_wizard()` 只把证书写到 `outgoing/`。若要自动维护主仓库的 `domain.yaml`：
 
@@ -395,8 +423,10 @@ app.foo = args.foo
 
 ## 5. 约定与安全红线
 
-- **密钥**：私钥永不入库、永不打印、永不写日志。新增功能如果读私钥，走 `views/common.py`
-  的 `official_key_ui` / `developer_key_ui`，以复用密码重试与缓存。
+- **密钥**：私钥永不入库、永不打印、永不写日志。只从 `~/.hpm/keys/` 查找
+  （`official.key`、`domain/<domain>/official.key`、`dev/<developer>/<developer>.key`）。
+  新增功能如果读私钥，走 `views/common.py` 的 `official_key_ui` / `developer_key_ui`，
+  以复用密码重试与缓存；不要重新从仓库目录找 key。
 - **密码**：只用 `app.input(mask=True)` 或 `HPM_KEY_PASSWORD`；不要拼进命令行参数。
 - **写文件**：统一用 `util.fs.atomic_write`；私钥 `0600`；证书/索引 `0644`。
 - **路径**：开发者名/域名必须过 `NAME_RE` 与 `RESERVED_NAMES`；落盘前 `resolve()` 并确认在仓库根内。
@@ -418,7 +448,7 @@ app.foo = args.foo
 |---------|------|
 | `ca` | 一次性测试 CA：`(key, cert, pem)` |
 | `repo` | 临时仓库根，设置 `HPM_REPO_ROOT`、`HPM_HOME` |
-| `domain_repo` | 带域证书 `official.crt` 与无密码 `official.key` 的私域仓库，`HPM_OFFICIAL_CERT` 指向测试 CA |
+| `domain_repo` | 带域证书 `official.crt` 的私域仓库；域私钥写在临时 `HPM_HOME/keys/domain/test/official.key`，`HPM_OFFICIAL_CERT` 指向测试 CA |
 | `developer_factory` | 生成并签发一个开发者证书，返回 `(dev_key, cert_path, cert_info)` |
 
 新增 core 功能至少覆盖：
@@ -472,11 +502,13 @@ python3 tests/pty_smoke.py
 
 | 变量 | 作用 |
 |------|------|
-| `HPM_HOME` | 覆盖 `~/.hpm`（`dev.json` 位置） |
+| `HPM_HOME` | 覆盖 `~/.hpm`（`dev.json` 与 `keys/` 位置） |
+| `HPM_REQUESTS_DIR` | 覆盖签名请求收件目录（默认 `repo-tool/requests/`） |
 | `HPM_REPO_ROOT` | 覆盖仓库根（测试用） |
 | `HPM_OFFICIAL_CERT` | 覆盖用于验证域证书的官方证书 |
 | `HPM_ROOT_CA` | 覆盖内置根证书 PEM 文件 |
 | `HPM_KEY_PASSWORD` | 非交互场景的私钥密码 |
+| `HPM_ALLOW_UNENCRYPTED` | 测试用：跳过「未加密私钥」迁移提示 |
 | `HPM_DEV_BIN` | 指定登录程序 |
 | `NO_COLOR` | 禁用颜色 |
 

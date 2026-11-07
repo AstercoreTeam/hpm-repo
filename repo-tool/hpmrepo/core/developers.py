@@ -43,12 +43,32 @@ class Request:
     github_url: str
     created_at: str
     nonce: str
+    repo_url: str = ""
+    index_url: str = ""
+    cert_url: str = ""
     path: Path | None = None
     raw: dict[str, Any] | None = None
 
     @property
     def label(self) -> str:
         return f"{self.kind} · {self.name}"
+
+
+@dataclass
+class PendingRequest:
+    path: Path
+    kind: str = ""
+    name: str = ""
+    created_at: str = ""
+    valid: bool = False
+    error: str = ""
+
+    @property
+    def label(self) -> str:
+        kind = {"developer": "开发者", "domain": "私域"}.get(self.kind, self.kind or "?")
+        name = self.name or self.path.name
+        state = "" if self.valid else f"  [{self.error or '无效'}]"
+        return f"[{kind}] {name}  {self.created_at or ''}{state}"
 
 
 @dataclass
@@ -96,6 +116,9 @@ def build_request(
     name: str,
     email: str = "",
     github_url: str = "",
+    repo_url: str = "",
+    index_url: str = "",
+    cert_url: str = "",
 ) -> dict[str, Any]:
     if kind not in ("developer", "domain"):
         raise RequestInvalid(f"未知请求类型: {kind}")
@@ -116,6 +139,12 @@ def build_request(
         "createdAt": _iso(dt.datetime.now(dt.timezone.utc)),
         "nonce": base64.b64encode(secrets.token_bytes(16)).decode(),
     }
+    if repo_url:
+        payload["repoUrl"] = repo_url
+    if index_url:
+        payload["indexUrl"] = index_url
+    if cert_url:
+        payload["certUrl"] = cert_url
     signature = crypto.sign_bytes(key, canonical_json(payload))
     doc = dict(payload)
     doc["selfSignature"] = base64.b64encode(signature).decode()
@@ -238,6 +267,9 @@ def validate_request_data(data: dict[str, Any], root: Path | None = None) -> Req
         github_url=str(data.get("githubUrl") or ""),
         created_at=str(data.get("createdAt") or ""),
         nonce=nonce,
+        repo_url=str(data.get("repoUrl") or ""),
+        index_url=str(data.get("indexUrl") or ""),
+        cert_url=str(data.get("certUrl") or ""),
         raw=data,
     )
 
@@ -315,21 +347,87 @@ def issue_request(
             archive_dir / f"{req.name}-{cert_info.serial}.request.json",
             dumps(req.raw),
         )
-    incoming = root / "incoming"
-    if req.path is not None and incoming.is_dir():
-        try:
-            if req.path.resolve().parent == incoming.resolve():
-                req.path.unlink()
-        except OSError:
-            pass
+    if req.path is not None:
+        from ..repo import request_inbox
+
+        for directory in (Path(root) / "incoming", request_inbox()):
+            try:
+                if directory.is_dir() and req.path.resolve().parent == directory.resolve():
+                    req.path.unlink()
+                    # 同时删除同名 .txt 人读版本，避免请求目录残留
+                    txt = req.path.with_name(
+                        req.path.name.replace(".request.json", ".request.txt")
+                    )
+                    if txt.is_file():
+                        txt.unlink()
+                    break
+            except OSError:
+                continue
     return target, cert_info
 
 
+def _request_dirs(root: Path) -> list[Path]:
+    from ..repo import request_inbox
+
+    dirs = [request_inbox(), Path(root) / "incoming"]
+    seen: set[Path] = set()
+    result: list[Path] = []
+    for directory in dirs:
+        try:
+            resolved = directory.resolve()
+        except OSError:
+            resolved = directory
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        result.append(directory)
+    return result
+
+
 def list_requests(root: Path) -> list[Path]:
-    incoming = Path(root) / "incoming"
-    if not incoming.is_dir():
-        return []
-    return sorted(incoming.glob(REQUEST_GLOB))
+    """待处理请求路径：优先 repo-tool/requests/，兼容旧 incoming/。"""
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    for directory in _request_dirs(Path(root)):
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.glob(REQUEST_GLOB)):
+            try:
+                key = path.resolve()
+            except OSError:
+                key = path
+            if key in seen:
+                continue
+            seen.add(key)
+            paths.append(path)
+    return paths
+
+
+def list_request_summaries(root: Path) -> list[PendingRequest]:
+    """读取请求列表，供管理员选择；不因单个文件损坏而中断。"""
+    summaries: list[PendingRequest] = []
+    for path in list_requests(root):
+        summary = PendingRequest(path=path)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            summary.error = f"无法读取: {exc}"
+            summaries.append(summary)
+            continue
+        if isinstance(data, dict):
+            summary.kind = str(data.get("kind") or "")
+            summary.name = str(data.get("name") or "")
+            summary.created_at = str(data.get("createdAt") or "")
+        try:
+            req = validate_request_data(data, Path(root))
+            summary.valid = True
+            summary.kind = req.kind
+            summary.name = req.name
+            summary.created_at = req.created_at
+        except (RequestInvalid, ValueError, TypeError) as exc:
+            summary.error = getattr(exc, "message", str(exc))
+        summaries.append(summary)
+    return summaries
 
 
 def list_developers(root: Path) -> list[Developer]:

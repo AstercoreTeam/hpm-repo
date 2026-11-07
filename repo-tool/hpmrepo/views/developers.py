@@ -6,7 +6,7 @@ from __future__ import annotations
 import datetime as dt
 from pathlib import Path
 
-from ..core import crypto, developers as dev_mod, index as index_mod, revoke
+from ..core import crypto, developers as dev_mod, domains as domains_mod, index as index_mod, revoke
 from ..tui.screen import Screen, ellipsize, st, text_width
 from ..tui.widgets import MenuItem, draw_footer, draw_table, draw_title
 from ..util.fs import atomic_write
@@ -42,8 +42,6 @@ class DevelopersView(MenuView):
             MenuItem("添加开发者", "对签名请求签发证书", action="add"),
             MenuItem("吊销证书", "写入 revoke.json", action="revoke"),
         ]
-        if self.app.ctx.role.can_issue_domain:
-            items.append(MenuItem("签发域证书", "仅官方仓库", action="domain"))
         items.append(MenuItem("← 返回", "", action="back"))
         return items
 
@@ -66,8 +64,6 @@ class DevelopersView(MenuView):
             add_developer_wizard(self.app)
         elif item.action == "revoke":
             revoke_wizard(self.app)
-        elif item.action == "domain":
-            sign_domain_wizard(self.app)
         elif item.action == "back":
             self.app.pop()
         self.refresh_items()
@@ -199,7 +195,7 @@ def add_developer_wizard(app) -> None:
         app.error("当前仓库不能签发证书", ctx.role.label)
         return
 
-    path = resolve_request_path(app, ctx)
+    path = resolve_request_path(app, ctx, kind="developer")
     if path is None:
         return
     try:
@@ -208,7 +204,7 @@ def add_developer_wizard(app) -> None:
         app.error("签名请求无效", str(exc))
         return
     if req.kind != "developer":
-        app.error("这不是开发者签名请求", f"类型为 {req.kind}，请使用「签发域证书」。")
+        app.error("这不是开发者签名请求", f"类型为 {req.kind}，请到「私域管理 → 签发证书」。")
         return
 
     existing = ctx.developer_cert(req.name)
@@ -270,7 +266,7 @@ def sign_domain_wizard(app) -> None:
     if not ctx.role.can_issue_domain:
         app.error("只有官方仓库可以签发域证书")
         return
-    path = resolve_request_path(app, ctx)
+    path = resolve_request_path(app, ctx, kind="domain")
     if path is None:
         return
     try:
@@ -287,7 +283,9 @@ def sign_domain_wizard(app) -> None:
             f"域名: {req.name}",
             f"SAN: {req.san}",
             f"邮箱: {req.email or '-'}",
-            "签发后需要把证书发回域管理员。",
+            f"索引 URL: {req.index_url or '-'}",
+            f"证书 URL: {req.cert_url or '-'}",
+            "签发后会自动登记到 domain.yaml（如果 URL 可用）。",
         ],
     ):
         return
@@ -305,17 +303,61 @@ def sign_domain_wizard(app) -> None:
         dumps(_receipt("domain", req.name, info, cert_path)),
     )
     log.log_action("domain_issue", f"{req.name} serial={info.serial}")
+
+    index_url, cert_url = req.index_url, req.cert_url
+    if not (index_url and cert_url):
+        guessed_index, guessed_cert = domains_mod.derive_urls(
+            req.repo_url, req.github_url
+        )
+        index_url = index_url or guessed_index
+        cert_url = cert_url or guessed_cert
+    if not index_url:
+        index_url = app.input(
+            "登记域",
+            "索引 URL（留空跳过登记）",
+            default="",
+            hint="用于写入 domain.yaml",
+        )
+        if index_url is None:
+            index_url = ""
+    if index_url and not cert_url:
+        cert_url = app.input(
+            "登记域",
+            "证书 URL",
+            default="",
+            hint="用于写入 domain.yaml",
+        )
+        if cert_url is None:
+            cert_url = ""
+
+    registered = False
+    if index_url and cert_url:
+        try:
+            domains_mod.register_domain(ctx.root, req.name, index_url, cert_url)
+            index_mod.rebuild(ctx.root)
+            index_mod.sign_index(ctx.root, key)
+            registered = True
+            log.log_action("domain_register", f"{req.name} {index_url}")
+        except Exception as exc:  # noqa: BLE001
+            app.error("证书已签发，但登记 domain.yaml 失败", str(exc))
+    else:
+        app.toast("已签发，但请求中没有 URL，未登记 domain.yaml", "warn", 5)
+
     app.info(
         "域证书已生成",
         [
             f"证书: {cert_path}",
             f"序列号: {info.serial}",
             f"指纹: {info.fingerprint}",
+            f"登记: {'已写入 domain.yaml' if registered else '未登记'}",
             "",
             "把该证书发回域管理员，由对方保存为 official.crt。",
         ],
     )
-    commit_ui(app, ctx, f"Sign domain {req.name} (serial {info.serial})")
+    message = f"Sign domain {req.name} (serial {info.serial})"
+    if registered:
+        message += " and register in domain.yaml"
+    commit_ui(app, ctx, message)
 
 
 def revoke_wizard(app) -> None:

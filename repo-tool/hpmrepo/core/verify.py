@@ -6,7 +6,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import gitops, index as index_mod, packages, revoke
+from . import gitops, index as index_mod, keys as keys_mod, packages, revoke
+from ..util.fs import is_private_mode
 from ..repo import RepoContext, Role
 
 
@@ -83,22 +84,31 @@ def run_all(ctx: RepoContext, *, deep: bool = True) -> list[Check]:
                 f"{status.branch or '-'} · 变更 {status.dirty} · ↑{status.ahead} ↓{status.behind}",
             )
         )
-        keys: list[Path] = []
-        if ctx.official_key_path.is_file():
-            keys.append(ctx.official_key_path)
+        official_key = keys_mod.find_official(ctx.domain, ctx.official_cert_path)
+        home_ok = official_key is None or is_private_mode(official_key)
+        legacy = [
+            p
+            for p in root.glob("*.key")
+            if p.is_file()
+        ]
         for dev_dir in root.iterdir():
             if dev_dir.is_dir() and (dev_dir / f"{dev_dir.name}.key").is_file():
-                keys.append(dev_dir / f"{dev_dir.name}.key")
-        leaked = [
-            str(k.relative_to(root))
-            for k in keys
-            if not gitops.is_ignored(root, str(k.relative_to(root)))
-        ]
+                legacy.append(dev_dir / f"{dev_dir.name}.key")
+        detail = []
+        if official_key is not None:
+            detail.append(f"official key: {official_key}")
+            if not home_ok:
+                detail.append("权限过宽（建议 0600）")
+        else:
+            detail.append("未找到 official key")
+        if legacy:
+            detail.append("仓库内发现私钥，应移到 ~/.hpm/keys")
         checks.append(
             Check(
-                "私钥忽略规则",
-                not leaked,
-                "未发现会被提交的私钥" if not leaked else "以下私钥未被 .gitignore 忽略: " + ", ".join(leaked),
+                "私钥存放",
+                home_ok and not legacy,
+                "；".join(detail),
+                warn=not (home_ok and not legacy),
             )
         )
     else:

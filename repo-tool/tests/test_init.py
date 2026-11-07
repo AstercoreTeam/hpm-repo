@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 
-from hpmrepo.core import crypto, developers as dev_mod, index as index_mod, revoke
+from hpmrepo.core import crypto, developers as dev_mod, index as index_mod, keys as keys_mod, revoke
 from hpmrepo.repo import detect
 from hpmrepo.views import init_repo
 
@@ -52,8 +52,9 @@ def test_init_execute(repo, ca, monkeypatch):
     # 绕过交互，直接执行初始化
     view._execute("test", "dev@example.com", "", "password123")
 
-    assert (repo / "official.key").is_file()
-    assert crypto.private_key_is_encrypted(repo / "official.key")
+    key_path = keys_mod.official_key_path("test")
+    assert key_path.is_file()
+    assert crypto.private_key_is_encrypted(key_path)
     assert (repo / "official.pub").is_file()
     assert (repo / "index.json").is_file()
     assert (repo / "revoke.json").is_file()
@@ -84,8 +85,8 @@ def test_init_execute(repo, ca, monkeypatch):
     assert role.role.value == "private"
 
     # 收尾：签名索引与吊销列表
-    key = crypto.load_private_key(repo / "official.key", "password123")
-    app = FakeApp(role, cached={str(repo / "official.key"): key})
+    key = crypto.load_private_key(key_path, "password123")
+    app = FakeApp(role, cached={str(key_path): key})
     monkeypatch.setattr(init_repo, "commit_ui", lambda *a, **k: True)
     finish = init_repo.FinishInitView(app)
     finish._finish()

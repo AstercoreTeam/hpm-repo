@@ -8,7 +8,7 @@ import json
 import tarfile
 
 from hpmrepo import config
-from hpmrepo.core import crypto, index as index_mod, revoke
+from hpmrepo.core import crypto, index as index_mod, keys as keys_mod, revoke
 from hpmrepo.repo import Role, detect
 
 from pathlib import Path
@@ -31,9 +31,11 @@ def _make_package(root, developer: str, name: str = "demo-ch552-1.0.0.tar.gz"):
         info = tarfile.TarInfo(f"{developer}/manifest.json")
         info.size = len(data)
         tar.addfile(info, io.BytesIO(data))
-    from hpmrepo.core import crypto
+    from hpmrepo.core import crypto, keys as keys_mod
 
-    key = crypto.load_private_key(root / "official.key", None)
+    official = keys_mod.find_official("test")
+    assert official is not None
+    key = crypto.load_private_key(official, None)
     (root / developer / (path.name + ".sig")).write_bytes(
         crypto.sign_bytes(key, path.read_bytes())
     )
@@ -48,7 +50,9 @@ def test_rebuild_and_sign_index(domain_repo, developer_factory):
     assert "demo-ch552" in data["packages"]
     assert "alice" in data["developers"]
 
-    key = crypto.load_private_key(domain_repo / "official.key", None)
+    official = keys_mod.find_official("test")
+    assert official is not None
+    key = crypto.load_private_key(official, None)
     index_mod.sign_index(domain_repo, key)
     ok, detail = index_mod.verify_index(domain_repo)
     assert ok, detail
@@ -75,7 +79,9 @@ def test_revoke_list(domain_repo, developer_factory):
     assert revoke.is_revoked(domain_repo, serial=info.serial)
     assert revoke.is_revoked(domain_repo, fingerprint=info.fingerprint)
 
-    key = crypto.load_private_key(domain_repo / "official.key", None)
+    official = keys_mod.find_official("test")
+    assert official is not None
+    key = crypto.load_private_key(official, None)
     revoke.sign(domain_repo, key)
     ok, detail = revoke.verify(domain_repo)
     assert ok, detail

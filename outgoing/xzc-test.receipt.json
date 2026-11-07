@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "kind": "developer",
+  "name": "xzc-test",
+  "san": "hpm://developer/xzc-test",
+  "subject": "O=HPM,CN=HPM Developer xzc-test",
+  "serial": "15AC8383A8A0BBF5DA91377A326F5C51",
+  "fingerprintSha256": "6D:32:D2:E2:8A:DB:40:B3:78:4D:08:6E:D7:29:AD:38:BC:FD:30:F9:B8:B1:E5:16:96:09:0A:0F:9B:89:3E:A4",
+  "notBefore": "2026-11-07T12:51:08+08:00",
+  "notAfter": "2029-11-06T12:56:08+08:00",
+  "certificate": "/run/media/xzc/Data/hpm-repo/outgoing/xzc-test.crt",
+  "issuedAt": "2026-11-07T04:56:08Z"
+}

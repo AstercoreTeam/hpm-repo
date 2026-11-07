@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from .core import crypto
+from .core import crypto, keys
 from .util.errors import RepoError
 
 
@@ -46,6 +46,22 @@ class Role(str, Enum):
         return self is Role.OFFICIAL
 
 
+def tool_dir() -> Path:
+    """工具自身目录（repo-tool/）。"""
+    return Path(__file__).resolve().parents[1]
+
+
+def request_inbox() -> Path:
+    """未登录用户提交签名请求的目录。
+
+    默认是 repo-tool/requests/；测试可用 HPM_REQUESTS_DIR 指向临时目录。
+    """
+    env = os.environ.get("HPM_REQUESTS_DIR")
+    if env:
+        return Path(env).expanduser().resolve()
+    return tool_dir() / "requests"
+
+
 def repo_root() -> Path:
     """仓库根 = repo-tool 的上一级；测试可用 HPM_REPO_ROOT 覆盖。"""
     env = os.environ.get("HPM_REPO_ROOT")
@@ -72,7 +88,8 @@ class RepoContext:
 
     @property
     def official_key_path(self) -> Path:
-        return self.root / "official.key"
+        """仓库 official 私钥在用户目录中的约定位置（不在仓库里）。"""
+        return keys.official_key_path(self.domain)
 
     @property
     def index_path(self) -> Path:
@@ -96,7 +113,13 @@ class RepoContext:
 
     @property
     def requests_dir(self) -> Path:
+        """已处理请求的归档目录。"""
         return self.root / "requests"
+
+    @property
+    def inbox_dir(self) -> Path:
+        """待处理签名请求的收件目录。"""
+        return request_inbox()
 
     def developer_dir(self, name: str) -> Path:
         return self.root / name
@@ -105,7 +128,7 @@ class RepoContext:
         return self.developer_dir(name) / f"{name}.crt"
 
     def developer_key(self, name: str) -> Path:
-        return self.developer_dir(name) / f"{name}.key"
+        return keys.developer_key_path(name)
 
 
 def _extract_domain(sans: list[str]) -> str:

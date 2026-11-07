@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from .. import __app_long_name__
-from ..core import gitops, index as index_mod
+from ..core import gitops, index as index_mod, keys as keys_mod
 from ..repo import Role
 from ..tui.screen import Screen, ellipsize, st
 from ..tui.widgets import MenuItem, draw_footer, draw_menu, draw_title, menu_move
@@ -68,7 +68,7 @@ class HomeView(View):
 
         if role is Role.OFFICIAL:
             lines.append(self._cert_text())
-            key_mark = "已找到" if self.ctx.official_key_path.is_file() else "未找到"
+            key_mark = "已找到" if keys_mod.find_official(self.ctx.domain, self.ctx.official_cert_path) else "未找到"
             lines.append(f"本地: {root}   角色: 官方仓库   私钥: {key_mark}")
             remote = ""
             if gitops.available() and gitops.is_repo(self.ctx.root):
@@ -128,6 +128,8 @@ class HomeView(View):
         if role is Role.OFFICIAL:
             items.append(MenuItem("管理包", "签名、索引、发布", action="packages"))
             items.append(MenuItem("管理开发者", "证书签发与吊销", action="developers"))
+            items.append(MenuItem("私域管理", "域列表 / 签发 / 吊销", action="domains"))
+            items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
             items.append(MenuItem("设置 / 诊断", "", action="settings"))
             items.append(MenuItem("退出", "", action="exit"))
             return items
@@ -136,6 +138,9 @@ class HomeView(View):
             if not valid:
                 items.append(
                     MenuItem("登录开发者中心", "需要先登录", action="login")
+                )
+                items.append(
+                    MenuItem("生成签名请求", "无需登录，提交到 requests/", action="generate_request")
                 )
                 items.append(MenuItem("退出", "", action="exit"))
                 return items
@@ -148,6 +153,7 @@ class HomeView(View):
                     )
                 )
             items.append(MenuItem("登录开发者中心", "重新登录 / 切换账号", action="login"))
+            items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
             items.append(MenuItem("管理包", "", action="packages"))
             items.append(MenuItem("管理开发者", "", action="developers"))
             items.append(MenuItem("设置 / 诊断", "", action="settings"))
@@ -166,16 +172,21 @@ class HomeView(View):
                     )
                 else:
                     items.append(MenuItem("初始化私域仓库", "生成密钥与签名请求", action="init"))
+                items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
                 items.append(MenuItem("设置 / 诊断", "", action="settings"))
                 items.append(MenuItem("退出", "", action="exit"))
             else:
                 items.append(
                     MenuItem("登录开发者中心", "初始化前需要登录", action="login")
                 )
+                items.append(
+                    MenuItem("生成签名请求", "无需登录，提交到 requests/", action="generate_request")
+                )
                 items.append(MenuItem("退出", "", action="exit"))
             return items
 
         items.append(MenuItem("设置 / 诊断", "查看证书问题", action="settings"))
+        items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
         items.append(MenuItem("退出", "", action="exit"))
         return items
 
@@ -253,6 +264,14 @@ class HomeView(View):
             from .init_repo import FinishInitView
 
             self.app.push(FinishInitView(self.app))
+        elif action == "generate_request":
+            from .request import RequestView
+
+            self.app.push(RequestView(self.app))
+        elif action == "domains":
+            from .domains import DomainManagementView
+
+            self.app.push(DomainManagementView(self.app))
         elif action == "settings":
             from .settings import SettingsView
 

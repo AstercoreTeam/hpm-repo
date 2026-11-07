@@ -14,6 +14,7 @@ from pathlib import Path
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, padding, rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
@@ -218,17 +219,73 @@ def csr_public_key_pem(csr: x509.CertificateSigningRequest) -> bytes:
 # --------------------------------------------------------------------------
 
 
+def _is_openssh_key(data: bytes) -> bool:
+    return b"-----BEGIN OPENSSH PRIVATE KEY-----" in data
+
+
 def private_key_is_encrypted(path: Path) -> bool:
+    """判断私钥是否需要密码。
+
+    支持：
+      - PKCS#8 加密 PEM（BEGIN ENCRYPTED PRIVATE KEY）
+      - 旧式 OpenSSL 加密 PEM（Proc-Type: 4,ENCRYPTED）
+      - OpenSSH 私钥（BEGIN OPENSSH PRIVATE KEY，bcrypt 加密）
+    优先实际尝试无密码加载，避免只看头部误判。
+    """
     try:
-        text = Path(path).read_text(encoding="utf-8", errors="ignore")
+        data = Path(path).read_bytes()
     except OSError:
         return False
-    return "ENCRYPTED PRIVATE KEY" in text
+
+    if _is_openssh_key(data):
+        try:
+            serialization.load_ssh_private_key(data, password=None)
+            return False
+        except TypeError:
+            return True
+        except (ValueError, UnsupportedAlgorithm):
+            return False
+
+    text = data.decode("utf-8", errors="ignore")
+    if (
+        "BEGIN ENCRYPTED PRIVATE KEY" in text
+        or "Proc-Type: 4,ENCRYPTED" in text
+        or "DEK-Info:" in text
+    ):
+        return True
+    try:
+        serialization.load_pem_private_key(data, password=None)
+        return False
+    except TypeError:
+        return True
+    except (ValueError, UnsupportedAlgorithm):
+        return False
 
 
 def load_private_key(path: Path, password: str | None = None):
     data = Path(path).read_bytes()
     pw = password.encode() if password else None
+
+    if _is_openssh_key(data):
+        try:
+            return serialization.load_ssh_private_key(data, password=pw)
+        except TypeError as exc:
+            message = str(exc).lower()
+            if "password" in message and pw is None:
+                raise PasswordError("私钥已加密，需要密码") from exc
+            if "not encrypted" in message:
+                try:
+                    return serialization.load_ssh_private_key(data, password=None)
+                except Exception as inner:  # noqa: BLE001
+                    raise CryptoError("无法读取 OpenSSH 私钥", str(inner)) from inner
+            raise CryptoError("无法读取 OpenSSH 私钥", str(exc)) from exc
+        except ValueError as exc:
+            if pw is not None:
+                raise PasswordError("私钥密码错误", "请重试") from exc
+            raise CryptoError("OpenSSH 私钥解析失败", str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001
+            raise CryptoError(f"无法读取私钥: {path}", str(exc)) from exc
+
     try:
         return serialization.load_pem_private_key(data, password=pw)
     except TypeError as exc:
@@ -240,7 +297,6 @@ def load_private_key(path: Path, password: str | None = None):
         raise PasswordError("私钥密码错误", "请重试") from exc
     except Exception as exc:  # noqa: BLE001
         raise CryptoError(f"无法读取私钥: {path}", str(exc)) from exc
-
 
 def load_private_key_auto(path: Path, password: str | None = None):
     """有密码就用密码；没密码先按无密码尝试。"""
@@ -269,6 +325,15 @@ def generate_ed25519_keypair(password: str | None = None) -> tuple[bytes, bytes]
         serialization.PublicFormat.SubjectPublicKeyInfo,
     )
     return private_pem, public_pem
+
+
+def encrypt_private_key_pem(key, password: str) -> bytes:
+    """把已有的私钥重新保存为带密码的 PKCS#8 PEM。"""
+    return key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.BestAvailableEncryption(password.encode()),
+    )
 
 
 def public_key_pem(key) -> bytes:

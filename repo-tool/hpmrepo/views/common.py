@@ -9,7 +9,7 @@ from pathlib import Path
 from ..core import crypto, gitops, index as index_mod, keys as keys_mod, revoke
 from ..repo import RepoContext
 from ..util import log
-from ..util.fs import ensure_private
+from ..util.fs import atomic_write, ensure_private
 
 
 def _load_key(app, path: Path, label: str):
@@ -27,6 +27,31 @@ def _load_key(app, path: Path, label: str):
         except crypto.PasswordError:
             pass
     if not encrypted:
+        if os.environ.get("HPM_ALLOW_UNENCRYPTED") != "1":
+            if app.confirm(
+                "私钥未加密",
+                [
+                    f"{label} 的私钥没有密码保护。",
+                    "现在设置密码并加密保存吗？",
+                    "",
+                    "选择「取消」将继续使用未加密私钥。",
+                ],
+                danger=True,
+            ):
+                password = ask_password_pair(
+                    app,
+                    "设置私钥密码",
+                    f"{label} 的私钥未加密，请设置新密码（至少 8 位）",
+                )
+                if password is None:
+                    return None
+                key = crypto.load_private_key(path, None)
+                atomic_write(
+                    path, crypto.encrypt_private_key_pem(key, password), mode=0o600
+                )
+                ensure_private(path)
+                app.cache_key(str(path), key)
+                return key
         try:
             key = crypto.load_private_key(path, None)
         except crypto.CryptoError:
@@ -55,6 +80,37 @@ def _load_key(app, path: Path, label: str):
     return None
 
 
+def load_key_with_password(app, path: Path, label: str):
+    """供新视图复用的私钥加载入口（密码重试 + 会话缓存）。"""
+    return _load_key(app, path, label)
+
+
+def ask_password_pair(
+    app, title: str = "私钥密码", prompt: str = "请为私钥设置密码（至少 8 位）"
+) -> str | None:
+    """生成新私钥时必须设置密码：两次输入，至少 8 位。"""
+    for _ in range(3):
+        first = app.input(
+            title,
+            prompt,
+            mask=True,
+            hint="密码只保存在内存，不写入磁盘 · Esc 取消",
+        )
+        if first is None:
+            return None
+        if len(first) < 8:
+            app.error("密码过短", "私钥密码至少需要 8 位。")
+            continue
+        second = app.input("确认密码", "请再次输入密码", mask=True, hint="Esc 取消")
+        if second is None:
+            return None
+        if first != second:
+            app.error("两次输入的密码不一致")
+            continue
+        return first
+    return None
+
+
 def _ask_key_path(app, title: str, default: Path) -> Path | None:
     text = app.input(
         title,
@@ -75,19 +131,19 @@ def _ask_key_path(app, title: str, default: Path) -> Path | None:
 
 
 def official_key_ui(app, ctx: RepoContext):
-    path = keys_mod.find_official(ctx.root)
+    path = keys_mod.find_official(ctx.domain, ctx.official_cert_path)
     if path is None:
-        path = _ask_key_path(app, "官方私钥", ctx.official_key_path)
+        path = _ask_key_path(app, "官方私钥", keys_mod.official_key_path(ctx.domain))
         if path is None:
             return None
     return _load_key(app, path, "official")
 
 
 def developer_key_ui(app, ctx: RepoContext, developer: str):
-    path = keys_mod.find_developer(ctx.root, developer)
+    path = keys_mod.find_developer(developer)
     if path is None:
         path = _ask_key_path(
-            app, f"{developer} 的私钥", ctx.developer_dir(developer) / f"{developer}.key"
+            app, f"{developer} 的私钥", keys_mod.developer_key_path(developer)
         )
         if path is None:
             return None
@@ -159,27 +215,26 @@ def commit_ui(
     return True
 
 
-def resolve_request_path(app, ctx: RepoContext) -> Path | None:
+def resolve_request_path(
+    app, ctx: RepoContext, kind: str | None = None
+) -> Path | None:
     from ..core import developers
 
-    candidates = developers.list_requests(ctx.root)
-    if candidates:
-        options = [p.name for p in candidates] + ["手动输入路径…"]
-        index = app.choose("选择签名请求", options, hint="↑↓ 选择 · Enter 确认")
-        if index is None:
-            return None
-        if index < len(candidates):
-            return candidates[index]
-    text = app.input(
-        "签名请求",
-        "请输入 .request.json 路径",
-        default=str(ctx.incoming_dir / "developer.request.json"),
-        hint="Esc 取消",
-    )
-    if text is None:
+    summaries = developers.list_request_summaries(ctx.root)
+    if kind is not None:
+        summaries = [s for s in summaries if s.kind == kind]
+    if not summaries:
+        label = {"developer": "开发者", "domain": "域"}.get(kind or "", "")
+        app.info(
+            f"没有待签发的{label}请求" if label else "没有待签发的请求",
+            [
+                f"请求目录: {ctx.inbox_dir}",
+                "请把 .request.json 放到该目录后重新打开此页面。",
+            ],
+        )
         return None
-    path = Path(text).expanduser()
-    if not path.is_file():
-        app.error(f"请求文件不存在: {path}")
+    options = [s.label for s in summaries]
+    index = app.choose("选择签名请求", options, hint="↑↓ 选择 · Enter 确认 · Esc 取消")
+    if index is None:
         return None
-    return path
+    return summaries[index].path

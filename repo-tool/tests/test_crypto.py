@@ -8,7 +8,7 @@ import json
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from hpmrepo.core import crypto, developers as dev_mod
+from hpmrepo.core import crypto, developers as dev_mod, keys as keys_mod
 from hpmrepo.util.errors import PasswordError, RequestInvalid
 
 
@@ -79,9 +79,11 @@ def test_domain_certificate_is_ca(domain_repo, ca, tmp_path):
     dev_key = ed25519.Ed25519PrivateKey.generate()
     doc = dev_mod.build_request(dev_key, kind="developer", name="bob")
     request = dev_mod.validate_request_data(doc, domain_repo)
-    path, issued = dev_mod.issue_request(domain_repo, request, crypto.load_private_key(
-        domain_repo / "official.key", None
-    ))
+    official = keys_mod.find_official("test")
+    assert official is not None
+    path, issued = dev_mod.issue_request(
+        domain_repo, request, crypto.load_private_key(official, None)
+    )
     assert path.exists()
     assert issued.san == ["hpm://developer/bob"]
 
@@ -91,10 +93,12 @@ def test_cannot_issue_domain_from_domain(domain_repo):
     doc = dev_mod.build_request(key, kind="domain", name="other")
     request = dev_mod.validate_request_data(doc, domain_repo)
     with pytest.raises(RequestInvalid):
+        official = keys_mod.find_official("test")
+        assert official is not None
         dev_mod.issue_request(
             domain_repo,
             request,
-            crypto.load_private_key(domain_repo / "official.key", None),
+            crypto.load_private_key(official, None),
         )
 
 
@@ -133,13 +137,6 @@ def test_official_can_issue_domain(repo):
     (repo / "official.crt").write_bytes(
         ca_cert.public_bytes(serialization.Encoding.PEM)
     )
-    (repo / "official.key").write_bytes(
-        ca_key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        )
-    )
 
     key = ed25519.Ed25519PrivateKey.generate()
     doc = dev_mod.build_request(key, kind="domain", name="newdom")
@@ -152,3 +149,211 @@ def test_official_can_issue_domain(repo):
     basic = issued.extensions.get_extension_for_class(x509.BasicConstraints)
     assert basic.value.path_length == 0
     assert crypto.verify_cert_signed_by(issued, ca_cert)
+
+
+def test_request_inbox_listing_and_removal(domain_repo):
+    from hpmrepo.core import keys as keys_mod
+    from hpmrepo.repo import request_inbox
+
+    inbox = request_inbox()
+    key = ed25519.Ed25519PrivateKey.generate()
+    doc = dev_mod.build_request(key, kind="developer", name="carol")
+    json_path, _ = dev_mod.write_request(inbox, doc, stem="developer-carol")
+    summaries = dev_mod.list_request_summaries(domain_repo)
+    target = [item for item in summaries if item.path == json_path]
+    assert target and target[0].valid
+    assert target[0].kind == "developer"
+    assert target[0].name == "carol"
+
+    official = keys_mod.find_official("test")
+    assert official is not None
+    request = dev_mod.load_request(json_path, domain_repo)
+    dev_mod.issue_request(
+        domain_repo, request, crypto.load_private_key(official, None)
+    )
+    assert not json_path.exists()
+
+
+def test_unencrypted_key_is_encrypted_on_load(tmp_path, monkeypatch):
+    from hpmrepo.views import common
+
+    monkeypatch.delenv("HPM_ALLOW_UNENCRYPTED", raising=False)
+    key_path = tmp_path / "official.key"
+    private_pem, _ = crypto.generate_ed25519_keypair(None)
+    key_path.write_bytes(private_pem)
+
+    class FakeApp:
+        def __init__(self):
+            self.cache = {}
+            self.errors = []
+
+        def confirm(self, *args, **kwargs):
+            return True
+
+        def input(self, title, prompt, **kwargs):
+            return "password123"
+
+        def error(self, message, hint=""):
+            self.errors.append(message)
+
+        def cached_key(self, path):
+            return self.cache.get(path)
+
+        def cache_key(self, path, key):
+            self.cache[path] = key
+
+    app = FakeApp()
+    key = common.load_key_with_password(app, key_path, "official")
+    assert key is not None
+    assert not app.errors
+    assert b"ENCRYPTED" in key_path.read_bytes()
+    with pytest.raises(PasswordError):
+        crypto.load_private_key(key_path, None)
+    assert crypto.load_private_key(key_path, "password123")
+
+
+def test_encrypted_detection_for_legacy_pem(tmp_path):
+    path = tmp_path / "legacy.key"
+    path.write_text(
+        "-----BEGIN RSA PRIVATE KEY-----\n"
+        "Proc-Type: 4,ENCRYPTED\n"
+        "DEK-Info: AES-256-CBC,00000000000000000000000000000000\n\n"
+        "AAAA\n"
+        "-----END RSA PRIVATE KEY-----\n",
+        encoding="utf-8",
+    )
+    assert crypto.private_key_is_encrypted(path)
+
+
+def test_find_official_prefers_cert_matching_key(tmp_path, monkeypatch):
+    from hpmrepo.core import keys as keys_mod
+
+    monkeypatch.setenv("HPM_HOME", str(tmp_path / "hpm"))
+    wrong = ed25519.Ed25519PrivateKey.generate()
+    right = ed25519.Ed25519PrivateKey.generate()
+    wrong_path = keys_mod.official_key_path("")
+    right_path = keys_mod.official_key_path("test")
+    for path, key in ((wrong_path, wrong), (right_path, right)):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(
+            key.private_bytes(
+                __import__("cryptography.hazmat.primitives.serialization", fromlist=["Encoding"]).Encoding.PEM,
+                __import__("cryptography.hazmat.primitives.serialization", fromlist=["PrivateFormat"]).PrivateFormat.PKCS8,
+                __import__("cryptography.hazmat.primitives.serialization", fromlist=["NoEncryption"]).NoEncryption(),
+            )
+        )
+        path.with_suffix(".pub").write_bytes(crypto.public_key_pem(key))
+
+    ca_key = ed25519.Ed25519PrivateKey.generate()
+    from cryptography import x509
+    import datetime as dt
+    from cryptography.x509.oid import NameOID
+
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "HPM Test")])
+    now = dt.datetime.now(dt.timezone.utc)
+    ca = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(ca_key.public_key())
+        .serial_number(2)
+        .not_valid_before(now - dt.timedelta(days=1))
+        .not_valid_after(now + dt.timedelta(days=10))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=1), critical=True)
+        .sign(ca_key, None)
+    )
+    cert_path = tmp_path / "official.crt"
+    cert_path.write_bytes(
+        crypto.issue_certificate(
+            ca,
+            ca_key,
+            right.public_key(),
+            "HPM Domain test",
+            "hpm://domain/test",
+            profile="domain",
+        )
+    )
+    assert keys_mod.find_official("test", cert_path) == right_path
+
+
+def test_find_official_skips_wrong_plaintext_key(tmp_path, monkeypatch):
+    from hpmrepo.core import keys as keys_mod
+
+    monkeypatch.setenv("HPM_HOME", str(tmp_path / "hpm"))
+    wrong = ed25519.Ed25519PrivateKey.generate()
+    wrong_path = keys_mod.official_key_path("")
+    wrong_path.parent.mkdir(parents=True, exist_ok=True)
+    wrong_path.write_bytes(
+        wrong.private_bytes(
+            __import__("cryptography.hazmat.primitives.serialization", fromlist=["Encoding"]).Encoding.PEM,
+            __import__("cryptography.hazmat.primitives.serialization", fromlist=["PrivateFormat"]).PrivateFormat.PKCS8,
+            __import__("cryptography.hazmat.primitives.serialization", fromlist=["NoEncryption"]).NoEncryption(),
+        )
+    )
+    right_pem, _ = crypto.generate_ed25519_keypair("password123")
+    right_path = keys_mod.official_key_path("test")
+    right_path.parent.mkdir(parents=True, exist_ok=True)
+    right_path.write_bytes(right_pem)
+    right_key = crypto.load_private_key(right_path, "password123")
+
+    ca_key = ed25519.Ed25519PrivateKey.generate()
+    from cryptography import x509
+    import datetime as dt
+    from cryptography.x509.oid import NameOID
+
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "HPM Test")])
+    now = dt.datetime.now(dt.timezone.utc)
+    ca = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(ca_key.public_key())
+        .serial_number(3)
+        .not_valid_before(now - dt.timedelta(days=1))
+        .not_valid_after(now + dt.timedelta(days=10))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=1), critical=True)
+        .sign(ca_key, None)
+    )
+    cert_path = tmp_path / "official.crt"
+    cert_path.write_bytes(
+        crypto.issue_certificate(
+            ca,
+            ca_key,
+            right_key.public_key(),
+            "HPM Domain test",
+            "hpm://domain/test",
+            profile="domain",
+        )
+    )
+    assert keys_mod.find_official("test", cert_path) == right_path
+
+
+def test_openssh_private_key_support(tmp_path):
+    from cryptography.hazmat.primitives import serialization
+
+    key = ed25519.Ed25519PrivateKey.generate()
+    encrypted = tmp_path / "id_ed25519"
+    encrypted.write_bytes(
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.OpenSSH,
+            serialization.BestAvailableEncryption(b"testpass"),
+        )
+    )
+    plain = tmp_path / "id_ed25519_plain"
+    plain.write_bytes(
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.OpenSSH,
+            serialization.NoEncryption(),
+        )
+    )
+    assert crypto.private_key_is_encrypted(encrypted)
+    assert not crypto.private_key_is_encrypted(plain)
+    with pytest.raises(PasswordError):
+        crypto.load_private_key(encrypted, None)
+    with pytest.raises(PasswordError):
+        crypto.load_private_key(encrypted, "wrong")
+    loaded = crypto.load_private_key(encrypted, "testpass")
+    assert len(crypto.sign_bytes(loaded, b"data")) == 64
+    assert crypto.load_private_key(plain, None)

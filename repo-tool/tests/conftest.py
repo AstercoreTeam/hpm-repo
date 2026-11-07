@@ -18,7 +18,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.x509.oid import NameOID
 
-from hpmrepo.core import crypto, developers as dev_mod
+from hpmrepo.core import crypto, developers as dev_mod, keys as keys_mod
+from hpmrepo.repo import request_inbox
 
 def make_ca() -> tuple[ed25519.Ed25519PrivateKey, x509.Certificate, bytes]:
     key = ed25519.Ed25519PrivateKey.generate()
@@ -68,6 +69,8 @@ def repo(tmp_path, monkeypatch):
     root.mkdir()
     monkeypatch.setenv("HPM_REPO_ROOT", str(root))
     monkeypatch.setenv("HPM_HOME", str(tmp_path / "hpm-home"))
+    monkeypatch.setenv("HPM_REQUESTS_DIR", str(tmp_path / "requests"))
+    monkeypatch.setenv("HPM_ALLOW_UNENCRYPTED", "1")
     return root
 
 
@@ -89,7 +92,9 @@ def domain_repo(repo, ca, monkeypatch):
         profile="domain",
     )
     (repo / "official.crt").write_bytes(domain_pem)
-    (repo / "official.key").write_bytes(
+    key_path = keys_mod.official_key_path("test")
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+    key_path.write_bytes(
         domain_key.private_bytes(
             serialization.Encoding.PEM,
             serialization.PrivateFormat.PKCS8,
@@ -102,12 +107,14 @@ def domain_repo(repo, ca, monkeypatch):
 def add_developer(root: Path, ca, name: str = "alice"):
     from hpmrepo.core import crypto as crypto_mod
 
-    ca_key = crypto_mod.load_private_key(root / "official.key", None)
+    official = keys_mod.find_official("test")
+    assert official is not None
+    ca_key = crypto_mod.load_private_key(official, None)
     dev_key = ed25519.Ed25519PrivateKey.generate()
     doc = dev_mod.build_request(dev_key, kind="developer", name=name)
-    incoming = root / "incoming"
-    incoming.mkdir(exist_ok=True)
-    path = incoming / f"{name}.request.json"
+    inbox = request_inbox()
+    inbox.mkdir(parents=True, exist_ok=True)
+    path = inbox / f"developer-{name}.request.json"
     path.write_text(json.dumps(doc), encoding="utf-8")
     req = dev_mod.load_request(path, root)
     cert_path, info = dev_mod.issue_request(root, req, ca_key)

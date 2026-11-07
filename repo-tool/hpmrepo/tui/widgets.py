@@ -149,12 +149,16 @@ def draw_modal(
     options: list[str] | None = None,
     cursor: int = 0,
     hint: str = "",
+    vertical_options: bool = False,
 ) -> tuple[int, int, int, int]:
     inner = max(20, width - 6)
     wrapped: list[str] = []
     for line in lines:
         wrapped.extend(wrap_text(line, inner) if line else [""])
-    height = len(wrapped) + 5 + (1 if options else 0)
+    option_height = 0
+    if options:
+        option_height = len(options) if vertical_options else 1
+    height = len(wrapped) + 5 + (option_height + 1 if options else 0)
     x, y, w, h = modal_geometry(screen, width, height)
     screen.fill(x + 1, y + 1, w - 2, h - 2, st(fg="text", bg="modal"))
     screen.box(
@@ -172,17 +176,35 @@ def draw_modal(
         row += 1
     if options:
         row += 1
-        col = x + 3
-        for index, option in enumerate(options):
-            selected = index == cursor
-            style = (
-                st(fg="white", bg="select", bold=True)
-                if selected
-                else st(fg="muted", bg="modal")
-            )
-            label = f" {option} "
-            screen.put(col, row, label, style)
-            col += text_width(label) + 2
+        if vertical_options:
+            for index, option in enumerate(options):
+                selected = index == cursor
+                style = (
+                    st(fg="white", bg="select", bold=True)
+                    if selected
+                    else st(fg="muted", bg="modal")
+                )
+                marker = "▸ " if selected else "  "
+                screen.fill(x + 2, row, w - 4, 1, style)
+                screen.put(
+                    x + 3,
+                    row,
+                    ellipsize(marker + option, w - 6),
+                    style,
+                )
+                row += 1
+        else:
+            col = x + 3
+            for index, option in enumerate(options):
+                selected = index == cursor
+                style = (
+                    st(fg="white", bg="select", bold=True)
+                    if selected
+                    else st(fg="muted", bg="modal")
+                )
+                label = f" {option} "
+                screen.put(col, row, label, style)
+                col += text_width(label) + 2
     if hint:
         screen.put(
             x + 3,

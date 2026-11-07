@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from .. import __version__
 from .. import config
-from ..core import auth, crypto, gitops
+from ..core import auth, crypto, gitops, keys as keys_mod
 from ..tui.widgets import MenuItem
 from ..util import log
 from .base import MenuView
@@ -80,7 +80,7 @@ class SettingsView(MenuView):
             f"仓库地址: {(self.app.dev.repo_url if self.app.dev else '') or '-'}",
             "",
             f"official.crt: {'存在' if ctx.official_cert_path.is_file() else '缺失'}",
-            f"official.key: {'存在' if ctx.official_key_path.is_file() else '缺失'}",
+            f"official.key: {keys_mod.find_official(ctx.domain, ctx.official_cert_path) or '缺失'}",
             f"index.json: {'存在' if ctx.index_path.is_file() else '缺失'}",
             f"revoke.json: {'存在' if ctx.revoke_path.is_file() else '缺失'}",
             "",
