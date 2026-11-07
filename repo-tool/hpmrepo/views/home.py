@@ -130,6 +130,7 @@ class HomeView(View):
             items.append(MenuItem("管理开发者", "证书签发与吊销", action="developers"))
             items.append(MenuItem("私域管理", "域列表 / 签发 / 吊销", action="domains"))
             items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
+            items.append(MenuItem("更新吊销列表", "仅刷新 updatedAt 并重签", action="update_revoke"))
             items.append(MenuItem("设置 / 诊断", "", action="settings"))
             items.append(MenuItem("退出", "", action="exit"))
             return items
@@ -156,6 +157,7 @@ class HomeView(View):
             items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
             items.append(MenuItem("管理包", "", action="packages"))
             items.append(MenuItem("管理开发者", "", action="developers"))
+            items.append(MenuItem("更新吊销列表", "仅刷新 updatedAt 并重签", action="update_revoke"))
             items.append(MenuItem("设置 / 诊断", "", action="settings"))
             items.append(MenuItem("退出", "", action="exit"))
             return items
@@ -272,6 +274,10 @@ class HomeView(View):
             from .domains import DomainManagementView
 
             self.app.push(DomainManagementView(self.app))
+        elif action == "update_revoke":
+            from .common import update_revoke_list
+
+            update_revoke_list(self.app)
         elif action == "settings":
             from .settings import SettingsView
 

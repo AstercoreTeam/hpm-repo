@@ -238,3 +238,25 @@ def resolve_request_path(
     if index is None:
         return None
     return summaries[index].path
+
+
+def update_revoke_list(app) -> None:
+    """主界面动作：只刷新吊销列表日期并重签，不修改条目。"""
+    from ..core import revoke
+
+    ctx = app.ctx
+    if not ctx.revoke_path.is_file():
+        app.error("revoke.json 不存在", "请先在「管理开发者」或「私域管理」中吊销证书。")
+        return
+    key = official_key_ui(app, ctx)
+    if key is None:
+        return
+    app.busy("更新吊销列表", "正在刷新 updatedAt 并重新签名…")
+    revoke.touch(ctx.root, ctx.cert)
+    revoke.sign(ctx.root, key)
+    ok, detail = revoke.verify(ctx.root)
+    if not ok:
+        app.error("吊销列表签名校验失败", detail)
+        return
+    app.toast("吊销列表日期已更新", "ok", 3)
+    commit_ui(app, ctx, "Refresh revoke.json date")

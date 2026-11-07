@@ -92,6 +92,19 @@ def issue(
     return doc
 
 
+def touch(root: Path, cert: crypto.CertInfo | None = None) -> dict[str, Any]:
+    """只刷新 updatedAt（必要时补 issuer），不修改任何吊销条目。"""
+    doc = load(root)
+    if cert is not None and not doc.get("issuer"):
+        doc["issuer"] = {
+            "san": cert.san[0] if cert.san else "",
+            "certSha256": cert.fingerprint,
+        }
+    doc["updatedAt"] = now_iso()
+    save(root, doc)
+    return doc
+
+
 def sign(root: Path, key, cert_path: Path | None = None) -> bytes:
     root = Path(root)
     cert_path = cert_path or (root / "official.crt")

@@ -78,6 +78,7 @@ chmod +x repo-tool/hrm
 - 开发者列表与证书详情
 - 添加开发者：直接显示 `repo-tool/requests/*.request.json`（兼容旧 `incoming/`）的请求列表；目录为空时只提示，不再要求输入 JSON 路径 → 校验 CSR 自签名、请求自签名、SAN、nonce 防重放 → 用 official 私钥签发 → 写 `<developer>/<developer>.crt` → 导出 `outgoing/` 回执 → 重建并签名索引
 - 吊销证书：写根目录 `revoke.json` 并签名
+- 删除开发者：先选择是否吊销，然后删除 `<developer>/` 目录并重建/签名索引；本地私钥保留在 `~/.hpm/keys/dev/`
 
 ### 私域管理（官方仓库）
 
@@ -87,6 +88,7 @@ chmod +x repo-tool/hrm
 - **签发证书**：直接显示 `repo-tool/requests/` 中的 domain 请求列表；没有请求时只提示；签发后写 `outgoing/<domain>.crt` 与回执；请求带 `indexUrl`/`certUrl` 时自动登记到 `domain.yaml` 并重建签名索引。
 - **登记证书**：用于补登记“已签发但未登记”的域证书，手动填写索引 URL 与证书 URL。
 - **吊销证书**：列出 `outgoing/` 中的域证书，选择原因后写入 `revoke.json` 并重新签名。
+- **删除域**：删除 `domain.yaml` 条目与 `outgoing/` 中的证书/回执，重建索引；可先吊销再删除。
 
 「管理开发者」只处理开发者证书，不再包含域证书签发。
 
@@ -101,6 +103,11 @@ chmod +x repo-tool/hrm
 5. 收到官方签发的 `official.crt` 后，主页会出现「完成初始化」，用 `~/.hpm` 中的 official 私钥签名 `index.json` 与 `revoke.json`
 
 如果之前用「生成签名请求」创建过该域的 `official.key`，初始化时会提示复用，避免密钥与请求不匹配。
+
+## 更新吊销列表
+
+主页主菜单提供「更新吊销列表」：只刷新 `revoke.json` 的 `updatedAt` 并重新签名，
+不修改任何吊销条目，也不重建索引。适合让客户端重新拉取/刷新吊销列表。
 
 ## 密钥与密码
 

@@ -41,6 +41,7 @@ class DevelopersView(MenuView):
             MenuItem("开发者列表", "", action="list"),
             MenuItem("添加开发者", "对签名请求签发证书", action="add"),
             MenuItem("吊销证书", "写入 revoke.json", action="revoke"),
+            MenuItem("删除开发者", "删除目录并重建索引", action="delete"),
         ]
         items.append(MenuItem("← 返回", "", action="back"))
         return items
@@ -64,6 +65,8 @@ class DevelopersView(MenuView):
             add_developer_wizard(self.app)
         elif item.action == "revoke":
             revoke_wizard(self.app)
+        elif item.action == "delete":
+            delete_developer_wizard(self.app)
         elif item.action == "back":
             self.app.pop()
         self.refresh_items()
@@ -440,4 +443,77 @@ def revoke_developer(app, developer: dev_mod.Developer) -> None:
         app,
         ctx,
         f"Revoke {developer.name} certificate (serial {developer.cert.serial})",
+    )
+
+
+def delete_developer_wizard(app) -> None:
+    ctx = app.ctx
+    developers = dev_mod.list_developers(ctx.root)
+    if not developers:
+        app.info("没有可删除的开发者")
+        return
+
+    options = [
+        f"{d.name}  包 {d.packages}  {d.cert.san[0] if d.cert.san else '-'}"
+        for d in developers
+    ]
+    index = app.choose("选择要删除的开发者", options)
+    if index is None:
+        return
+    developer = developers[index]
+
+    if not app.confirm(
+        "删除开发者",
+        [
+            f"开发者: {developer.name}",
+            f"目录: {developer.directory}",
+            f"包数量: {developer.packages}",
+            "",
+            "将删除该目录（证书、包）并从索引移除；",
+            "私钥仍保留在 ~/.hpm/keys/dev/ 中。",
+        ],
+        danger=True,
+    ):
+        return
+
+    mode = app.choose(
+        "删除方式",
+        ["先吊销证书再删除", "仅删除（证书仍然有效，不推荐）", "取消"],
+    )
+    if mode is None or mode == 2:
+        return
+
+    key = official_key_ui(app, ctx)
+    if key is None:
+        return
+
+    if mode == 0:
+        app.busy("删除开发者", "正在吊销证书…")
+        revoke.issue(
+            ctx.root,
+            serial=developer.cert.serial,
+            kind="developer",
+            name=developer.name,
+            san=developer.cert.san[0] if developer.cert.san else "",
+            subject=developer.cert.subject,
+            cert_fingerprint=developer.cert.fingerprint,
+            reason="ceased",
+            revoked_by=(app.dev.developer if app.dev else ""),
+            comment="removed by admin",
+        )
+
+    app.busy("删除开发者", f"正在删除 {developer.name} …")
+    try:
+        dev_mod.delete_developer(ctx.root, developer.name)
+    except Exception as exc:  # noqa: BLE001
+        app.error("删除开发者目录失败", str(exc))
+        return
+
+    rebuild_and_sign(app, ctx, key)
+    log.log_action("developer_delete", developer.name)
+    app.toast(f"已删除开发者 {developer.name}", "ok", 3)
+    commit_ui(
+        app,
+        ctx,
+        f"Delete developer {developer.name}" + (" (revoked)" if mode == 0 else ""),
     )

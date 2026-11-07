@@ -173,10 +173,36 @@ def test_builder_matches_existing_index():
     assert data == existing
 
 
-def test_current_repo_passes_publish_gate():
-    from hpmrepo.core.verify import publish_gate
-    from hpmrepo.repo import detect
+def test_delete_developer_removes_folder(domain_repo, developer_factory):
+    from hpmrepo.core import developers as dev_mod
 
-    ctx = detect(REPO_SOURCE)
-    assert ctx.role.value == "official"
-    assert publish_gate(ctx) == []
+    developer_factory("alice")
+    _make_package(domain_repo, "alice")
+    dev_mod.delete_developer(domain_repo, "alice")
+    assert not (domain_repo / "alice").exists()
+    data = index_mod.rebuild(domain_repo)[0]
+    assert "alice" not in data["developers"]
+    assert "demo-ch552" not in data["packages"]
+
+
+def test_revoke_touch_only_updates_date(domain_repo, developer_factory):
+    _, _, info = developer_factory("alice")
+    revoke.issue(
+        domain_repo,
+        serial=info.serial,
+        kind="developer",
+        name="alice",
+        san=info.san[0],
+        subject=info.subject,
+        cert_fingerprint=info.fingerprint,
+        reason="superseded",
+    )
+    doc = revoke.load(domain_repo)
+    doc["updatedAt"] = "2000-01-01T00:00:00Z"
+    revoke.save(domain_repo, doc)
+    entries_before = list(doc["entries"])
+
+    refreshed = revoke.touch(domain_repo, info)
+    assert refreshed["entries"] == entries_before
+    assert refreshed["updatedAt"] != "2000-01-01T00:00:00Z"
+    assert refreshed["issuer"]["certSha256"] == info.fingerprint

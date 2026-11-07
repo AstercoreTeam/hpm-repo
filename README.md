@@ -65,8 +65,9 @@ pip3 install -r repo-tool/requirements.txt
 | 登录 | 委托 `hpm-dev login`，不接触 AppKey，不写 `dev.json` |
 | 生成签名请求 | 未登录、登录页、主页均可使用；生成 domain/developer 请求到 `repo-tool/requests/` |
 | 包管理 | 列表与磁盘对账、签名 tar.gz、入库、删除版本、重建/签名索引、发布后校验 |
-| 开发者管理 | 查看证书、读取 `requests/` 请求列表、签发开发者证书、导出证书与回执 |
-| 私域管理 | 官方仓库主界面的「私域管理」：私域列表、签发证书、登记证书、吊销证书 |
+| 开发者管理 | 查看证书、读取 `requests/` 请求列表、签发/吊销/删除开发者、导出证书与回执 |
+| 私域管理 | 官方仓库主界面的「私域管理」：私域列表、签发证书、登记证书、吊销/删除域 |
+| 更新吊销列表 | 主页主菜单：仅刷新 `revoke.json` 的 `updatedAt` 并重签，不改条目 |
 | 吊销证书 | 生成并签名根目录 `revoke.json` |
 | 初始化私域仓库 | 建 Git 仓库、生成加密的 official 密钥、生成官方签名请求、配置远程 |
 | 仓库校验 | 索引签名、包哈希/签名、证书链、私钥忽略规则 |
@@ -96,7 +97,8 @@ pip3 install -r repo-tool/requirements.txt
 - 两个入口直接列出 `repo-tool/requests/` 中的请求，不再要求输入 JSON 路径；
 - 请求目录为空时只显示提示；签发后归档到仓库根 `requests/`；
 - 域请求带索引/证书 URL，签发成功后自动写入 `domain.yaml` 并重建签名索引；
-- 已有证书但未登记时，用「私域管理 → 登记证书」补登记。
+- 已有证书但未登记时，用「私域管理 → 登记证书」补登记；
+- 删除开发者/域时会移除对应目录、`outgoing` 文件与索引，可在删除前选择是否同时吊销证书。
 
 ### 密钥与密码
 
@@ -116,8 +118,8 @@ pip3 install -r repo-tool/requirements.txt
 
 ```bash
 cd repo-tool
-python3 -m pytest -q          # 22 项单元/集成测试
-python3 tests/pty_smoke.py    # 12 个 pty 端到端场景
+python3 -m pytest -q          # 24 项单元/集成测试
+python3 tests/pty_smoke.py    # 15 个 pty 端到端场景
 ```
 
 ### 文档

@@ -69,3 +69,34 @@ def test_register_domain_and_derive_urls(repo):
     )
     config = domains.load_domain_config(repo)
     assert set(config) == {"alice", "bob"}
+
+
+def test_remove_domain_removes_config_and_files(repo, ca):
+    ca_key, ca_cert, _ = ca
+    outgoing = repo / "outgoing"
+    outgoing.mkdir()
+    domains.register_domain(
+        repo, "alice", "https://example.com/index.json", "https://example.com/official.crt"
+    )
+    domains.register_domain(
+        repo, "bob", "https://example.org/index.json", "https://example.org/official.crt"
+    )
+    key = ed25519.Ed25519PrivateKey.generate()
+    (outgoing / "alice.crt").write_bytes(
+        crypto.issue_certificate(
+            ca_cert,
+            ca_key,
+            key.public_key(),
+            "HPM Domain alice",
+            "hpm://domain/alice",
+            profile="domain",
+        )
+    )
+    (outgoing / "alice.receipt.json").write_text("{}", encoding="utf-8")
+
+    removed = domains.remove_domain(repo, "alice")
+    config = domains.load_domain_config(repo)
+    assert set(config) == {"bob"}
+    assert not (outgoing / "alice.crt").exists()
+    assert not (outgoing / "alice.receipt.json").exists()
+    assert repo / "domain.yaml" in removed

@@ -177,3 +177,41 @@ def register_domain(root: Path, name: str, index_url: str, cert_url: str) -> Pat
         mode=0o644,
     )
     return path
+
+
+def remove_domain(root: Path, name: str) -> list[Path]:
+    """从 domain.yaml 删除域，并移除 outgoing 中的证书/回执。"""
+    root = Path(root)
+    name = (name or "").strip()
+    if not name:
+        raise RepoError("域名不能为空")
+    removed: list[Path] = []
+
+    for suffix in (".crt", ".receipt.json"):
+        path = root / "outgoing" / f"{name}{suffix}"
+        if path.is_file():
+            path.unlink()
+            removed.append(path)
+
+    path = root / "domain.yaml"
+    if path.is_file():
+        try:
+            import yaml  # type: ignore
+        except ImportError as exc:  # pragma: no cover
+            raise RepoError("需要 PyYAML 才能修改 domain.yaml", "pip3 install pyyaml") from exc
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except Exception as exc:  # noqa: BLE001
+            raise RepoError("读取 domain.yaml 失败", str(exc)) from exc
+        if not isinstance(data, dict):
+            raise RepoError("domain.yaml 根节点必须是对象")
+        domains = data.get("domains", {})
+        if isinstance(domains, dict) and name in domains:
+            domains.pop(name)
+            atomic_write(
+                path,
+                yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
+                mode=0o644,
+            )
+            removed.append(path)
+    return removed

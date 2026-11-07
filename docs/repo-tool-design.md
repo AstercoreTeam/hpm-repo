@@ -164,6 +164,7 @@ hpm-repo/
 │      管理开发者                                                      │
 │      私域管理                                                        │
 │      生成签名请求                                                    │
+│      更新吊销列表                                                    │
 │      设置 / 诊断                                                     │
 │      退出                                                            │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -360,7 +361,9 @@ def detect_role(repo) -> Role:
 | 登录/Token 检查 | 不需要 | 需要 | 需要（用于取得 repoUrl） |
 | 管理包 / 重建索引 / 签索引 | 是 | 是 | 否 |
 | 添加开发者（签开发者证书） | 是 | 是 | 否 |
-| 私域管理（列表/签发/吊销域证书） | 是 | 否 | 否 |
+| 私域管理（列表/签发/登记/吊销/删除域） | 是 | 否 | 否 |
+| 删除开发者 | 是 | 是 | 否 |
+| 更新吊销列表（仅 updatedAt） | 是 | 是 | 否 |
 | 生成签名请求（登录/未登录/登录页均可） | 是 | 是 | 是 |
 | 初始化私域仓库 | 否 | 否 | 是（有 Token 后） |
 | 远程地址来源 | `git remote -v` | `dev.json.repoUrl`（默认）/ `git remote` | `dev.json.repoUrl`（默认）/ 手输 |
@@ -498,6 +501,9 @@ def detect_role(repo) -> Role:
 - **签发证书**：读取 `repo-tool/requests/` 中的 domain 请求（无请求只提示），签发后写 `outgoing/<domain>.crt` 与回执；请求带 `indexUrl`/`certUrl` 时自动写入 `domain.yaml`、重建并签名主索引，否则提示未登记。
 - **登记证书**：对“已签发，未登记”的域证书补填索引/证书 URL，写 `domain.yaml` 并重签索引。
 - **吊销证书**：列出 `outgoing/` 中的域证书，写 `revoke.json` 并重新签名。
+- **删除域**：删除 `domain.yaml` 条目与 `outgoing/` 证书/回执，重建索引；可选择先吊销。
+
+主页「更新吊销列表」只调用 `revoke.touch()` 刷新 `updatedAt`，再用官方私钥重签，不修改条目、不重建索引。
 
 ### 6.5 管理包（S3/S4/S5）
 
@@ -769,7 +775,7 @@ load_key_with_password(path) -> Key
 | M5 | 包管理 + 索引重建/签名 + Git 发布向导 | 完成 |
 | M6 | 校验门禁、错误处理、测试与文档 | 完成 |
 
-测试：`python3 -m pytest -q`（22 项）与 `python3 tests/pty_smoke.py`（12 个 pty 场景）。
+测试：`python3 -m pytest -q`（24 项）与 `python3 tests/pty_smoke.py`（15 个 pty 场景）。
 
 ---
 

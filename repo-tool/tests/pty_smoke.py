@@ -736,6 +736,167 @@ def scenario_domain_management() -> None:
         os.close(session.master)
 
 
+def scenario_delete_developer() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        root = base / "repo"
+        root.mkdir()
+        home = base / "home"
+        home.mkdir()
+        issuer = base / "issuer.crt"
+        _prepare_signed_repo(root, home, issuer)
+        _make_request(home, "alice")
+        from hpmrepo.core import crypto, developers as dev_mod, index as index_mod, revoke
+
+        key = crypto.load_private_key(domain_key_path(home), None)
+        req = dev_mod.load_request(
+            requests_dir(home) / "developer-alice.request.json", root
+        )
+        dev_mod.issue_request(root, req, key)
+        index_mod.rebuild(root)
+        index_mod.sign_index(root, key)
+
+        env = make_env(root, home, HPM_OFFICIAL_CERT=str(issuer))
+        session = Session(env, "--no-animation")
+        session.wait_for("管理开发者")
+        for _ in range(3):
+            session.send("\x1b[B")
+            time.sleep(0.15)
+        session.send("\r")
+        session.wait_for("删除开发者")
+        for _ in range(3):
+            session.send("\x1b[B")
+            time.sleep(0.15)
+        session.send("\r")
+        session.wait_for("选择要删除的开发者")
+        session.send("\r")
+        session.wait_for("删除开发者")
+        session.send("\x1b[C")
+        time.sleep(0.2)
+        session.send("\r")
+        session.wait_for("删除方式")
+        session.send("\r")  # 先吊销再删除
+        deadline = time.monotonic() + 6
+        while time.monotonic() < deadline and (root / "alice").exists():
+            time.sleep(0.05)
+        assert not (root / "alice").exists(), "开发者目录未删除"
+        data = index_mod.load_index(root)
+        assert "alice" not in data["developers"]
+        assert revoke.load(root)["entries"]
+        session.send("\x1b")
+        time.sleep(0.2)
+        session.send("q")
+        session.proc.wait(timeout=3)
+        session.drain(0.2)
+        os.close(session.master)
+
+
+def scenario_delete_domain() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        root = base / "repo"
+        root.mkdir()
+        home = base / "home"
+        home.mkdir()
+        _make_official_repo(base, root, home)
+
+        from cryptography.hazmat.primitives.asymmetric import ed25519
+        from hpmrepo.core import crypto, developers as dev_mod, domains as domains_mod, index as index_mod
+
+        official_key = crypto.load_private_key(home / "keys" / "official.key", None)
+        key = ed25519.Ed25519PrivateKey.generate()
+        doc = dev_mod.build_request(
+            key,
+            kind="domain",
+            name="newdom",
+            repo_url="https://github.com/example/hpm-repo",
+        )
+        inbox = requests_dir(home)
+        inbox.mkdir(parents=True, exist_ok=True)
+        (inbox / "domain-newdom.request.json").write_text(json.dumps(doc), encoding="utf-8")
+        req = dev_mod.load_request(inbox / "domain-newdom.request.json", root)
+        dev_mod.issue_request(root, req, official_key)
+        index_url, cert_url = domains_mod.derive_urls(req.repo_url, req.github_url)
+        domains_mod.register_domain(root, "newdom", index_url, cert_url)
+        index_mod.rebuild(root)
+        index_mod.sign_index(root, official_key)
+
+        env = make_env(root, home, HPM_ROOT_CA=str(base / "root.crt"))
+        session = Session(env, "--no-animation")
+        session.wait_for("私域管理")
+        session.send("\x1b[B")
+        session.send("\x1b[B")
+        time.sleep(0.2)
+        session.send("\r")
+        session.wait_for("私域列表")
+        for _ in range(4):
+            session.send("\x1b[B")
+            time.sleep(0.12)
+        session.send("\r")
+        session.wait_for("选择要删除的域")
+        session.send("\r")
+        session.wait_for("删除域")
+        session.send("\x1b[C")
+        time.sleep(0.2)
+        session.send("\r")
+        session.wait_for("删除方式")
+        session.send("\r")
+        deadline = time.monotonic() + 6
+        while (
+            time.monotonic() < deadline
+            and "newdom" in domains_mod.load_domain_config(root)
+        ):
+            time.sleep(0.05)
+        assert "newdom" not in domains_mod.load_domain_config(root)
+        assert not (root / "outgoing" / "newdom.crt").exists()
+        data = index_mod.load_index(root)
+        assert "newdom" not in data["domains"]
+        session.send("\x1b")
+        time.sleep(0.2)
+        session.send("q")
+        session.proc.wait(timeout=3)
+        session.drain(0.2)
+        os.close(session.master)
+
+
+def scenario_refresh_revoke_date() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        root = base / "repo"
+        root.mkdir()
+        home = base / "home"
+        home.mkdir()
+        issuer = base / "issuer.crt"
+        _prepare_signed_repo(root, home, issuer)
+        from hpmrepo.core import crypto, index as index_mod, revoke
+
+        doc = revoke.load(root)
+        doc["updatedAt"] = "2000-01-01T00:00:00Z"
+        revoke.save(root, doc)
+        index_mod.sign_index(root, crypto.load_private_key(domain_key_path(home), None))
+
+        env = make_env(root, home, HPM_OFFICIAL_CERT=str(issuer))
+        session = Session(env, "--no-animation")
+        session.wait_for("管理包")
+        for _ in range(4):
+            session.send("\x1b[B")
+            time.sleep(0.12)
+        session.wait_for("更新吊销列表")
+        session.send("\r")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if revoke.load(root)["updatedAt"] != "2000-01-01T00:00:00Z":
+                break
+            time.sleep(0.05)
+        assert revoke.load(root)["updatedAt"] != "2000-01-01T00:00:00Z"
+        ok, detail = revoke.verify(root)
+        assert ok, detail
+        session.send("q")
+        session.proc.wait(timeout=3)
+        session.drain(0.2)
+        os.close(session.master)
+
+
 def main() -> int:
     scenarios = [
         ("home/gating", scenario_home),
@@ -749,6 +910,9 @@ def main() -> int:
         ("sign domain from home", scenario_sign_domain_from_home),
         ("no request list", scenario_no_requests),
         ("domain management", scenario_domain_management),
+        ("delete developer", scenario_delete_developer),
+        ("delete domain", scenario_delete_domain),
+        ("refresh revoke date", scenario_refresh_revoke_date),
         ("splash", scenario_splash),
     ]
     failed = 0

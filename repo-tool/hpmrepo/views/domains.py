@@ -8,7 +8,7 @@ from ..tui.screen import Screen, ellipsize, st, text_width
 from ..tui.widgets import MenuItem, draw_footer, draw_table, draw_title
 from ..util import log
 from .base import MenuView, View
-from .common import commit_ui, official_key_ui
+from .common import commit_ui, official_key_ui, rebuild_and_sign
 
 
 class DomainManagementView(MenuView):
@@ -25,6 +25,7 @@ class DomainManagementView(MenuView):
             MenuItem("签发证书", "读取 requests/ 中的域请求", action="sign"),
             MenuItem("登记证书", "已签发但未登记到 domain.yaml", action="register"),
             MenuItem("吊销证书", "写入 revoke.json", action="revoke"),
+            MenuItem("删除域", "删除 domain.yaml 条目与证书", action="delete"),
             MenuItem("← 返回", "", action="back"),
         ]
 
@@ -51,6 +52,8 @@ class DomainManagementView(MenuView):
             register_domain_wizard(self.app)
         elif item.action == "revoke":
             revoke_domain_wizard(self.app)
+        elif item.action == "delete":
+            delete_domain_wizard(self.app)
         elif item.action == "back":
             self.app.pop()
         self.refresh_items()
@@ -283,4 +286,74 @@ def register_domain_wizard(app) -> None:
     app.toast(f"已登记域 {entry.name}", "ok", 3)
     commit_ui(
         app, ctx, f"Register domain {entry.name} in domain.yaml"
+    )
+
+
+def delete_domain_wizard(app) -> None:
+    ctx = app.ctx
+    entries = domains_mod.list_domains(ctx.root)
+    if not entries:
+        app.info("没有可删除的域")
+        return
+
+    options = [f"{e.name}  {e.status}" for e in entries]
+    index = app.choose("选择要删除的域", options)
+    if index is None:
+        return
+    entry = entries[index]
+
+    if not app.confirm(
+        "删除域",
+        [
+            f"域名: {entry.name}",
+            f"状态: {entry.status}",
+            f"本地证书: {entry.local_cert or '-'}",
+            "",
+            "将删除 domain.yaml 中的条目及 outgoing 中的证书/回执，并重建索引。",
+        ],
+        danger=True,
+    ):
+        return
+
+    mode = app.choose(
+        "删除方式",
+        ["先吊销证书再删除", "仅删除（证书仍然有效，不推荐）", "取消"],
+    )
+    if mode is None or mode == 2:
+        return
+
+    key = official_key_ui(app, ctx)
+    if key is None:
+        return
+
+    cert = entry.cert
+    if mode == 0 and cert is not None:
+        app.busy("删除域", "正在吊销证书…")
+        revoke.issue(
+            ctx.root,
+            serial=cert.serial,
+            kind="domain",
+            name=entry.name,
+            san=cert.san[0] if cert.san else "",
+            subject=cert.subject,
+            cert_fingerprint=cert.fingerprint,
+            reason="ceased",
+            revoked_by=(app.dev.developer if app.dev else ""),
+            comment="removed by admin",
+        )
+
+    app.busy("删除域", f"正在删除 {entry.name} …")
+    try:
+        domains_mod.remove_domain(ctx.root, entry.name)
+    except Exception as exc:  # noqa: BLE001
+        app.error("删除域失败", str(exc))
+        return
+
+    rebuild_and_sign(app, ctx, key)
+    log.log_action("domain_delete", entry.name)
+    app.toast(f"已删除域 {entry.name}", "ok", 3)
+    commit_ui(
+        app,
+        ctx,
+        f"Delete domain {entry.name}" + (" (revoked)" if mode == 0 else ""),
     )

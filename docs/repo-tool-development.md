@@ -408,6 +408,8 @@ app.foo = args.foo
 - 登记：`views/domains.py` 的 `register_domain_wizard()`，用于补登记已签发证书。
 - URL 推导：`domains.derive_urls(repo_url, github_url)`。
 - 吊销：`views/domains.py` 的 `revoke_domain_wizard()`，写 `kind="domain"` 的 `revoke.json` 记录。
+- 删除：`core/domains.remove_domain()` / `core/developers.delete_developer()`，删除后由视图重建并签名索引。
+- 刷新日期：`core/revoke.touch()` 只改 `updatedAt`；主页调用 `views/common.update_revoke_list()` 重签。
 - 新增域相关操作时放在 `DomainManagementView`，不要塞回「管理开发者」。
 
 ### 4.13 域证书签完后自动登记

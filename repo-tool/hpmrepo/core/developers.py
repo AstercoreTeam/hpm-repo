@@ -8,6 +8,7 @@ import datetime as dt
 import json
 import re
 import secrets
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -474,3 +475,20 @@ def save_generated_key(path: Path, private_pem: bytes, public_pem: bytes) -> Non
     atomic_write(path, private_pem, mode=0o600)
     ensure_private(path)
     atomic_write(path.with_suffix(".pub"), public_pem, mode=0o644)
+
+
+def delete_developer(root: Path, name: str) -> Path:
+    """删除开发者目录（证书、包），索引由调用方重建。"""
+    root = Path(root).resolve()
+    if not NAME_RE.match(name) or name in RESERVED_NAMES:
+        raise RequestInvalid(f"开发者名不合法: {name}")
+    path = (root / name)
+    if path.is_symlink():
+        raise RequestInvalid(f"拒绝删除符号链接: {path}")
+    resolved = path.resolve()
+    if resolved.parent != root:
+        raise RequestInvalid(f"路径越界: {path}")
+    if not resolved.is_dir():
+        raise RequestInvalid(f"开发者目录不存在: {path}")
+    shutil.rmtree(resolved)
+    return resolved

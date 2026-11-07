@@ -2,6 +2,3 @@ domains:
   qincnd:
     index: https://raw.githubusercontent.com/qincnd/hpm-repo/main/index.json
     cert: https://raw.githubusercontent.com/qincnd/hpm-repo/main/official.crt
-  xzc-test-repo:
-    index: https://test.com
-    cert: https://test.com
