@@ -10,9 +10,10 @@ HPM 官方包仓库。存放芯片驱动、设备驱动和工具链描述文件�
 hpm-repo/
 ├── README.md               本文件（仓库根目录唯一文档）
 ├── docs/                   全部文档
-│   ├── repo.md                 仓库维护（索引、信任链、发布流程、镜像、排障）
-│   ├── repo-tool.md            hrm 使用说明
-│   └── repo-tool-design.md     hrm 设计与实现
+│   ├── repo.md                  仓库维护（索引、信任链、发布流程、镜像、排障）
+│   ├── repo-tool.md             hrm 使用说明
+│   ├── repo-tool-design.md      hrm 设计与实现
+│   └── repo-tool-development.md hrm 开发与扩展指南
 ├── index.json              仓库索引（schema 2）
 ├── index.json.sig          索引签名（官方证书私钥签）
 ├── revoke.json             证书吊销列表（可选，官方私钥签）
@@ -99,6 +100,7 @@ python3 tests/pty_smoke.py    # 8 个 pty 端到端场景
 
 - [hrm 使用说明](docs/repo-tool.md)
 - [hrm 设计与实现](docs/repo-tool-design.md)
+- [hrm 开发与扩展指南](docs/repo-tool-development.md)
 - [仓库维护文档](docs/repo.md)
 
 ## 信任链

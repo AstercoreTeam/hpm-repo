@@ -28,8 +28,9 @@ hpm-repo/
 ├── README.md                   仓库说明（根目录唯一文档）
 ├── docs/                       全部文档
 │   ├── repo.md                 本文件
-│   ├── repo-tool.md            hrm 使用说明
-│   └── repo-tool-design.md     hrm 设计与实现
+│   ├── repo-tool.md             hrm 使用说明
+│   ├── repo-tool-design.md      hrm 设计与实现
+│   └── repo-tool-development.md hrm 开发与扩展指南
 ├── index.json                  索引（schema 2）
 ├── index.json.sig              官方证书私钥签名
 ├── revoke.json                 证书吊销列表（官方私钥签，可选）

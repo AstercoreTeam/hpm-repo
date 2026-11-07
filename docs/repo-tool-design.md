@@ -2,7 +2,7 @@
 
 > 状态：v0.1 已实现（`repo-tool/hrm`）
 > 目标读者：仓库维护者、HPM 客户端维护者
-> 关联文档：[README](../README.md)、[仓库维护](repo.md)、[hrm 使用](repo-tool.md)、`hpm_dev_center.md`
+> 关联文档：[README](../README.md)、[仓库维护](repo.md)、[hrm 使用](repo-tool.md)、[开发与扩展](repo-tool-development.md)、`hpm_dev_center.md`
 
 ---
 
@@ -79,7 +79,8 @@ hpm-repo/
 ├── docs/                         # 全部文档
 │   ├── repo.md
 │   ├── repo-tool.md
-│   └── repo-tool-design.md
+│   ├── repo-tool-design.md
+│   └── repo-tool-development.md
 ├── repo-tool/
 │   ├── hrm                       # 可执行入口（#!/usr/bin/env python3）
 │   ├── requirements.txt

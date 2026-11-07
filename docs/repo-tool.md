@@ -2,7 +2,7 @@
 
 HPM 仓库维护工具：终端全屏界面，用于管理官方仓库与私域仓库。
 
-相关文档：[仓库 README](../README.md) · [仓库维护](repo.md) · [设计与实现](repo-tool-design.md)
+相关文档：[仓库 README](../README.md) · [仓库维护](repo.md) · [设计与实现](repo-tool-design.md) · [开发与扩展](repo-tool-development.md)
 
 ## 运行要求
 
