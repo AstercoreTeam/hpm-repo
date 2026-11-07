@@ -4,9 +4,6 @@
   "developers": {
     "xzc": {
       "cert": "{baseurl}/xzc/xzc.crt"
-    },
-    "xzc-test": {
-      "cert": "{baseurl}/xzc-test/xzc-test.crt"
     }
   },
   "domains": {
