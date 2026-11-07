@@ -25,15 +25,24 @@ export HPM_REGISTRY="https://raw.githubusercontent.com/AstercoreTeam/hpm-repo/ma
 
 ```
 hpm-repo/
+├── README.md                   仓库说明（根目录唯一文档）
+├── docs/                       全部文档
+│   ├── repo.md                 本文件
+│   ├── repo-tool.md             hrm 使用说明
+│   ├── repo-tool-design.md      hrm 设计与实现
+│   └── repo-tool-development.md hrm 开发与扩展指南
 ├── index.json                  索引（schema 2）
 ├── index.json.sig              官方证书私钥签名
+├── revoke.json                 证书吊销列表（官方私钥签，可选）
+├── revoke.json.sig             吊销列表签名
 ├── official.crt                官方仓库证书（Root CA 签发）
 ├── xzc/
 │   ├── xzc.crt                 开发者证书（官方/域证书签发）
 │   ├── ch552g-1.0.0.tar.gz
 │   └── ch552g-1.0.0.tar.gz.sig
-├── gen_index.py                生成 index.json
 ├── domain.yaml                 域配置
+├── repo-tool/                  维护工具 hrm（./repo-tool/hrm）
+│   └── requests/               待处理签名请求（未登录也可提交）
 └── toolchains/
 ```
 
@@ -95,7 +104,27 @@ developer.crt（开发者证书）
 
 `{baseurl}` 会替换成索引 URL 的目录。
 
-## 五、发布新包
+## 五、维护工具 hrm
+
+仓库根目录运行：
+
+```bash
+./repo-tool/hrm
+```
+
+- 私域仓库：Token 来自 `~/.hpm/dev.json`；没有 Token 时主页只显示登录。
+- 登录：调用 `hpm-dev login`，本工具不接触 AppKey、不写 `dev.json`。
+- 初始化私域仓库：生成 Git 仓库、加密的 official Ed25519 密钥、`official.request.json`。
+- 生成签名请求：未登录也可生成 domain/developer 请求，写入 `repo-tool/requests/`。
+- 管理开发者：读取 `repo-tool/requests/*.request.json`（兼容旧 `incoming/`）后签发证书，写 `<developer>/<developer>.crt`。
+- 私域管理：官方仓库主页主菜单提供私域列表、签发证书、吊销证书；域证书签发不再放在「管理开发者」。
+- 吊销：写根目录 `revoke.json` 与 `revoke.json.sig`。
+- 重建索引：索引扫描逻辑已并入 hrm，仓库不再需要 `gen_index.py`。
+
+私钥只从用户目录 `~/.hpm` 查找：`~/.hpm/keys/official.key`、`~/.hpm/keys/domain/<domain>/official.key`、`~/.hpm/keys/dev/<developer>/<developer>.key`；旧布局仍兼容读取；
+仓库目录中不再查找私钥。找不到会要求输入路径，加密私钥会提示密码。
+
+## 六、发布新包
 
 ### 1. 开发者签名包
 
@@ -124,12 +153,14 @@ publish/<name>-<version>.tar.gz.sig
 
 ### 3. 重新生成索引
 
+使用 hrm：
+
 ```bash
-cd hpm-repo
-python3 gen_index.py
+./repo-tool/hrm
+# 主页 → 管理包 → 重建索引
 ```
 
-`gen_index.py` 扫描 `*.tar.gz`、`*.tar.gz.sig`、`<developer>/<developer>.crt`，
+hrm 扫描 `*.tar.gz`、`*.tar.gz.sig`、`<developer>/<developer>.crt`，
 生成 schema 2 索引。
 
 ### 4. 签索引
@@ -156,7 +187,7 @@ git commit -m "Update <package>"
 git push origin main
 ```
 
-## 六、证书维护
+## 七、证书维护
 
 证书生成、签发和 profile 见 HPM 主仓库的
 `docs/pki.md`。
@@ -167,7 +198,7 @@ git push origin main
 - 开发者私钥只签自己的包；
 - 证书过期前重新签发并更新索引 URL。
 
-## 七、镜像
+## 八、镜像
 
 镜像需要同步：
 
@@ -178,7 +209,7 @@ git push origin main
 
 客户端的 `HPM_OFFICIAL_CERT_URL` 仍指向官方，不从镜像取官方证书。
 
-## 八、故障排查
+## 九、故障排查
 
 ### `索引签名无效`
 
@@ -206,11 +237,11 @@ openssl pkeyutl -verify -pubin -inkey /tmp/off.pub -rawin \
 - `sig` 不是开发者证书对应私钥签的；
 - 重新运行 `hpm-dev publish`。
 
-## 九、发布检查清单
+## 十、发布检查清单
 
 - [ ] 开发者证书已放入 `<developer>/<developer>.crt`
 - [ ] tar.gz 和 sig 已放入对应目录
-- [ ] `python3 gen_index.py`
+- [ ] 在 hrm 中执行「重建索引」
 - [ ] 用官方私钥签 `index.json.sig`
 - [ ] 验证索引签名
 - [ ] 验证包签名

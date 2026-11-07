@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "kind": "domain",
+  "name": "xzc-test-repo",
+  "san": "hpm://domain/xzc-test-repo",
+  "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAIzaNyEQ4k17UA8XREHwhba0t741A6GUsvtmtxrAG3Yo=\n-----END PUBLIC KEY-----\n",
+  "csr": "-----BEGIN CERTIFICATE REQUEST-----\nMIHpMIGcAgEAMDExITAfBgNVBAMMGEhQTSBEb21haW4geHpjLXRlc3QtcmVwbzEM\nMAoGA1UECgwDSFBNMCowBQYDK2VwAyEAIzaNyEQ4k17UA8XREHwhba0t741A6GUs\nvtmtxrAG3YqgODA2BgkqhkiG9w0BCQ4xKTAnMCUGA1UdEQQeMByGGmhwbTovL2Rv\nbWFpbi94emMtdGVzdC1yZXBvMAUGAytlcANBAIjTz49nKmYrzoVRNscZMJlntaja\n1iyPWWntzkGk0T7FwNLJ/w9++DXWYxls1RrKcYi3KgisA+WELepNYalCEgM=\n-----END CERTIFICATE REQUEST-----\n",
+  "email": "2636670638@qq.com",
+  "githubUrl": "https://github.com/xzc842",
+  "createdAt": "2026-11-07T06:00:07Z",
+  "nonce": "R15xOIOpNAikecZqFO18rg==",
+  "selfSignature": "IPn+YKTTIYGyo1W1esfdgolsuB/gmU0czZ6+mNWXYiRCySC3WFQz3yxiin4UIKG7V6XNp52pmV9hSdh0z347Bg=="
+}
