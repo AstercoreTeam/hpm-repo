@@ -528,6 +528,89 @@
         }
       }
     },
+    "usb_cdc-ch552g": {
+      "versions": {
+        "1.0.0": {
+          "kind": "driver",
+          "chip": "ch552g",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/usb_cdc-ch552g-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/usb_cdc-ch552g-1.0.0.tar.gz.sig",
+          "sha256": "ccfbe046befbd713e58f3e2387583956988af8601cff55c0fcd52ec1c4bbda61",
+          "size": 24810,
+          "license": "MIT",
+          "description": "CH552 USB CDC serial",
+          "config": {
+            "usb_vid": {
+              "type": "int",
+              "default": "0x1209"
+            },
+            "usb_pid": {
+              "type": "int",
+              "default": "0x0001"
+            },
+            "usb_device_version": {
+              "type": "int",
+              "default": "0x0100"
+            },
+            "usb_max_power_ma": {
+              "type": "int",
+              "default": "100"
+            },
+            "usb_manufacturer": {
+              "type": "string",
+              "length": 16,
+              "default": "HPM"
+            },
+            "usb_product": {
+              "type": "string",
+              "length": 16,
+              "default": "CH552 CDC"
+            },
+            "usb_serial": {
+              "type": "string",
+              "length": 64,
+              "default": "0001"
+            },
+            "usb_interface": {
+              "type": "string",
+              "length": 16,
+              "default": "CDC"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "void",
+                "params": []
+              },
+              {
+                "name": "write",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "char",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "name": "available",
+                "return": "uint8_t",
+                "params": []
+              },
+              {
+                "name": "read",
+                "return": "char",
+                "params": []
+              }
+            ]
+          },
+          "requires": {}
+        }
+      }
+    },
     "usb_cdc-stm32f103c8t6": {
       "versions": {
         "1.0.0": {
