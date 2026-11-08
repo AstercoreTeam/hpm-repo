@@ -105,8 +105,8 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/pwm-stc90c51-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/pwm-stc90c51-1.0.0.tar.gz.sig",
-          "sha256": "5b43da08c86a5cbb394ee6e9c0b98b6dcba3cc7a1d29cddb22e6ab0d9be84053",
-          "size": 1220,
+          "sha256": "ecaaee3d097aace84ff1f9d560e3043e947d2a6d433a2c5a3490f7315e465baa",
+          "size": 1213,
           "license": "MIT",
           "description": "Independent hardware timer PWM driver",
           "config": {
@@ -394,8 +394,8 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/time-stc90c51-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/time-stc90c51-1.0.0.tar.gz.sig",
-          "sha256": "32f4b2dd346a8ef8e48d4b53634403c311ca72f5b7e2aec523a5c3274b9091bd",
-          "size": 1309,
+          "sha256": "96f2a1900b33cf7178cc575741df6ca8298f84e05bbd5e9cfe39a6826da2073a",
+          "size": 1305,
           "license": "MIT",
           "description": "Timer based precise delay driver",
           "config": {
@@ -453,8 +453,8 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/usb_cdc-ch552g-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/usb_cdc-ch552g-1.0.0.tar.gz.sig",
-          "sha256": "ccfbe046befbd713e58f3e2387583956988af8601cff55c0fcd52ec1c4bbda61",
-          "size": 24810,
+          "sha256": "7bcfe0513374e0351e5218d3eb64b53f2240a17fffd5777fedecabf841c5a6dd",
+          "size": 24836,
           "license": "MIT",
           "description": "CH552 USB CDC serial",
           "config": {
@@ -536,8 +536,8 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/usb_cdc-stm32f103c8t6-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/usb_cdc-stm32f103c8t6-1.0.0.tar.gz.sig",
-          "sha256": "6f0eb7e05a14dccda59b18d718c4de108344ea14508b0291279ae29e25eae42c",
-          "size": 31188,
+          "sha256": "cf813129117737d980861bc160380c655b671d4e045580ac4506f6e21fd94eb3",
+          "size": 31177,
           "license": "MIT",
           "description": "USB CDC ACM virtual COM port for STM32F103C8T6",
           "config": {
