@@ -105,6 +105,8 @@ hpm-repo/
 │   │   │   ├── developers.py     # 请求校验、证书签发
 │   │   │   ├── revoke.py         # revoke.json
 │   │   │   ├── domains.py        # domain.yaml / outgoing 域列表
+│   │   │   ├── identity.py       # 四类身份（按私钥文件）
+│   │   │   ├── center.py         # 开发者中心同步 API
 │   │   │   ├── keys.py  auth.py  gitops.py  verify.py
 │   │   └── util/
 │   │       ├── shell.py  fs.py  jsonc.py  log.py  errors.py
@@ -360,6 +362,8 @@ def detect_role(repo) -> Role:
 |------|----------|----------|----------|
 | 登录/Token 检查 | 不需要 | 需要 | 需要（用于取得 repoUrl） |
 | 管理包 / 重建索引 / 签索引 | 是 | 是 | 否 |
+| 发布包（仅签名入库，不需 official 私钥） | 是 | 是 | 否 |
+| 未索引包列表 / 详情页加入索引 | 是 | 是 | 否 |
 | 添加开发者（签开发者证书） | 是 | 是 | 否 |
 | 私域管理（列表/签发/登记/吊销/删除域） | 是 | 否 | 否 |
 | 删除开发者 | 是 | 是 | 否 |
@@ -367,6 +371,18 @@ def detect_role(repo) -> Role:
 | 生成签名请求（登录/未登录/登录页均可） | 是 | 是 | 是 |
 | 初始化私域仓库 | 否 | 否 | 是（有 Token 后） |
 | 远程地址来源 | `git remote -v` | `dev.json.repoUrl`（默认）/ `git remote` | `dev.json.repoUrl`（默认）/ 手输 |
+
+#### 5.3.2 人员身份（只检测私钥文件）
+
+| 身份 | 文件 | 登录 | 能力 |
+|------|------|------|------|
+| 未注册 | 无 | 否 | 生成签名请求 |
+| 普通开发者 | `keys/dev/<name>/<name>.key` | 否 | 发布包（仅签名入库） |
+| 私域管理员 | `keys/domain/<domain>/official.key` | 是 | 管理包/开发者、签索引、吊销、同步开发者中心 |
+| HPM 官方管理员 | `keys/official.key` | 否 | 私域管理员能力 + 私域管理 |
+
+优先级：官方 > 域 > 开发者 > 未注册。只判断文件存在，不验证私钥内容；真正签名失败由密钥/证书不匹配兜底。
+官方仓库只认 `keys/official.key`，域私钥不授予官方仓库管理权。
 
 ### 5.4 签名请求格式（新增，双向复用）
 
@@ -507,16 +523,14 @@ def detect_role(repo) -> Role:
 
 ### 6.5 管理包（S3/S4/S5）
 
-- **列表**：以 `index.json.packages` 为骨架，与磁盘 `*.tar.gz` 对账，标出「只在磁盘」「只在索引」「sig 缺失」「sha256 不匹配」「证书已吊销」。
-- **发布向导**：
-  1. 选择包文件（默认扫描 `publish/`，其次 `<developer>/`）；
-  2. 若缺 `.sig`：用开发者私钥签名（定位/密码规则同 §7.4）；已有 `.sig` 则用开发者证书验签；
-  3. 校验文件名符合 `<driver>-<chip>-<ver>.tar.gz` / `<chip>-<ver>.tar.gz`，版本号纯数字分段；
-  4. 复制到 `<developer>/`（同名默认拒绝，需显式覆盖）；
-  5. 重建索引（`core/index.build_index`）；
-  6. 用 official 密钥签 `index.json`；
-  7. 全量校验：索引签名、每个包的 sha256/size、每个 sig、证书未吊销；
-  8. 展示 diff 摘要 → 输入提交信息 → `git add/commit` → 可选 push。
+- **列表**：以 `index.json.packages` 为骨架，与磁盘 `*.tar.gz` 对账；磁盘上存在但未进索引的包也会显示，状态为「未加入索引」。
+- **发布向导（仅签名入库）**：普通开发者可用，不需要 official 私钥：
+  1. 选择包文件；
+  2. 用开发者私钥签名（已有有效 `.sig` 可复用）；
+  3. 复制到 `<developer>/`；
+  4. **不重建索引**，由管理员后续加入。
+- **发布向导（并更新索引）**：需要 official 私钥，签名入库后重建索引、签索引并全量校验。
+- **详情页**：未索引包按 `a` 用 official 私钥重建/签名索引，将其加入 `index.json`；按 `d` 删除未索引文件或已索引版本。
 - **查看/删除版本**：删除前确认；删除后自动重建并重签索引；`git rm` 交给 Git。
 - **重建索引 / 签索引**：独立入口，供「只改了证书」「只手工放了包」时使用。
 - **包元数据**：直接读 tar 内 `manifest.json|chip.json`（`core/index.py` 的 `_read_package_meta`），界面展示 requires/provides/config 的结构化摘要。
@@ -530,6 +544,22 @@ def detect_role(repo) -> Role:
 - 远程管理：初始化时可加，设置页可改；不处理凭据（交给系统 credential helper / SSH agent）。
 
 ---
+
+### 6.7 开发者中心同步（仅私域管理员）
+
+登录后的私域管理员在本地变更后调用 `/api/webhooks/apps`：
+
+| 本地操作 | action | payload |
+|----------|--------|---------|
+| 新增/重签开发者 | `update_developer` | `name`、`pubUrl`、`pubSigUrl` |
+| 更新包（发布/加入索引） | `update_package` | `name`、`kind`、`requiresJson`、`version`、`url`、`sigUrl`、`sha256`、`size`、`license` |
+| 删除开发者 | `delete_developer` | `name` |
+| 删除包 | `delete_package` | `name`（服务端删除该包全部版本） |
+
+- 删除接口返回 404 时视为“已不存在”，不算同步失败；
+- 包在本地仍保留其他版本时**不调用** `delete_package`，避免误删远程全部版本；
+- 开发者中心按包名删除全部版本，无法只删单个版本；
+- 同步失败只提示，不回滚本地操作。
 
 ## 7. 密码学设计
 
@@ -775,7 +805,7 @@ load_key_with_password(path) -> Key
 | M5 | 包管理 + 索引重建/签名 + Git 发布向导 | 完成 |
 | M6 | 校验门禁、错误处理、测试与文档 | 完成 |
 
-测试：`python3 -m pytest -q`（24 项）与 `python3 tests/pty_smoke.py`（15 个 pty 场景）。
+测试：`python3 -m pytest -q`（30 项）与 `python3 tests/pty_smoke.py`（16 个 pty 场景）。
 
 ---
 

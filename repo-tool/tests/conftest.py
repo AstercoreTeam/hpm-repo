@@ -71,6 +71,7 @@ def repo(tmp_path, monkeypatch):
     monkeypatch.setenv("HPM_HOME", str(tmp_path / "hpm-home"))
     monkeypatch.setenv("HPM_REQUESTS_DIR", str(tmp_path / "requests"))
     monkeypatch.setenv("HPM_ALLOW_UNENCRYPTED", "1")
+    monkeypatch.setenv("HPM_DISABLE_CENTER_SYNC", "1")
     return root
 
 

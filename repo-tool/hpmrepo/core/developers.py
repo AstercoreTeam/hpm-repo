@@ -335,6 +335,14 @@ def issue_request(
         target_dir = root / req.name
         target_dir.mkdir(parents=True, exist_ok=True)
         target = target_dir / f"{req.name}.crt"
+        # 开发者中心同步需要公钥与公钥签名
+        pub_pem = crypto.public_key_pem(csr.public_key())
+        atomic_write(target_dir / f"{req.name}.pub", pub_pem, mode=0o644)
+        atomic_write(
+            target_dir / f"{req.name}.pub.sig",
+            crypto.sign_bytes(ca_key, pub_pem),
+            mode=0o644,
+        )
     else:
         outgoing = root / "outgoing"
         outgoing.mkdir(exist_ok=True)

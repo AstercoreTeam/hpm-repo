@@ -10,6 +10,7 @@ import traceback
 from typing import Callable
 
 from . import __app_long_name__, __version__, config, repo as repo_mod
+from .core import identity as identity_mod
 from .tui import theme
 from .tui.screen import Screen, ellipsize, st, text_width, wrap_text
 from .tui.terminal import Key, Terminal
@@ -32,6 +33,7 @@ class App:
         self.ctx: repo_mod.RepoContext
         self.dev: config.DevConfig | None
         self.token: config.TokenStatus
+        self.identity: identity_mod.Identity
         self._key_cache: dict[str, object] = {}
         self.debug = False
         self.reload()
@@ -46,6 +48,9 @@ class App:
             self.toast(exc.message, "error")
         self.token = config.token_status(self.dev)
         self.ctx = repo_mod.detect()
+        self.identity = identity_mod.detect(
+            self.ctx, self.dev.developer if self.dev else ""
+        )
 
     # ------------------------------------------------------------------
     # 导航
@@ -56,6 +61,10 @@ class App:
         if len(self.stack) > 1:
             self.stack.pop()
             self.screen.invalidate()
+            parent = self.stack[-1]
+            resume = getattr(parent, "on_resume", None)
+            if callable(resume):
+                resume()
 
     def replace(self, view) -> None:
         if self.stack:

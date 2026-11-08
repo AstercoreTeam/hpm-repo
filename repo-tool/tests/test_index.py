@@ -206,3 +206,37 @@ def test_revoke_touch_only_updates_date(domain_repo, developer_factory):
     assert refreshed["entries"] == entries_before
     assert refreshed["updatedAt"] != "2000-01-01T00:00:00Z"
     assert refreshed["issuer"]["certSha256"] == info.fingerprint
+
+
+def test_unindexed_package_appears_then_can_be_indexed(domain_repo, developer_factory):
+    from hpmrepo.core import packages
+
+    dev_key, cert_path, _ = developer_factory("alice")
+    tar = domain_repo / "alice" / "demo-ch552-1.0.0.tar.gz"
+    manifest = {
+        "name": "demo",
+        "version": "1.0.0",
+        "chip": "ch552",
+        "description": "demo driver",
+        "provides": {"methods": []},
+        "requires": {},
+    }
+    with tarfile.open(tar, "w:gz") as archive:
+        data = json.dumps(manifest).encode()
+        info = tarfile.TarInfo("alice/manifest.json")
+        info.size = len(data)
+        archive.addfile(info, io.BytesIO(data))
+    from hpmrepo.core import crypto
+
+    (domain_repo / "alice" / (tar.name + ".sig")).write_bytes(
+        crypto.sign_bytes(dev_key, tar.read_bytes())
+    )
+
+    rows = packages.list_all(domain_repo)
+    target = [r for r in rows if r.package == "demo-ch552" and r.version == "1.0.0"]
+    assert target and not target[0].indexed and target[0].sig_ok
+
+    index_mod.rebuild(domain_repo)
+    rows = packages.list_all(domain_repo)
+    target = [r for r in rows if r.package == "demo-ch552" and r.version == "1.0.0"]
+    assert target and target[0].indexed

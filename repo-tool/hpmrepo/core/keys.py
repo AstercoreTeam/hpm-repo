@@ -135,3 +135,44 @@ def key_looks_valid(path: Path) -> bool:
 
 def key_is_encrypted(path: Path) -> bool:
     return crypto.private_key_is_encrypted(path)
+
+
+def has_official_admin_key() -> bool:
+    """只检测通用 official 私钥文件，不验证内容。"""
+    return any(
+        path.is_file()
+        for path in (keys_dir() / "official.key", hpm_home() / "official.key")
+    )
+
+
+def domain_key_files() -> list[Path]:
+    paths = list((keys_dir() / "domain").glob("*/official.key"))
+    # 旧布局 keys/<domain>/official.key（排除 keys/domain 本身）
+    for path in keys_dir().glob("*/official.key"):
+        if path.parent.name == "domain":
+            continue
+        paths.append(path)
+    return sorted({p for p in paths if p.is_file()})
+
+
+def has_domain_admin_key(domain: str = "") -> bool:
+    domain = (domain or "").strip()
+    if domain:
+        return any(path.parent.name == domain for path in domain_key_files())
+    return bool(domain_key_files())
+
+
+def developer_key_files() -> list[Path]:
+    paths = list((keys_dir() / "dev").glob("*/*.key"))
+    for path in keys_dir().glob("*/*.key"):
+        if path.parent.name in ("domain", "dev"):
+            continue
+        paths.append(path)
+    return sorted({p for p in paths if p.is_file()})
+
+
+def has_developer_key(developer: str = "") -> bool:
+    developer = (developer or "").strip()
+    if developer:
+        return find_developer(developer) is not None
+    return bool(developer_key_files())

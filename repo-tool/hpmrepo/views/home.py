@@ -6,6 +6,7 @@ from __future__ import annotations
 from .. import __app_long_name__
 from ..core import gitops, index as index_mod, keys as keys_mod
 from ..repo import Role
+from ..core.identity import Identity
 from ..tui.screen import Screen, ellipsize, st
 from ..tui.widgets import MenuItem, draw_footer, draw_menu, draw_title, menu_move
 from .base import View
@@ -25,7 +26,7 @@ class HomeView(View):
         self.ctx = self.app.ctx
         self.dev = self.app.dev
         self.token = self.app.token
-        self.header = self._build_header()
+        self.header = [f"身份: {self.app.identity.label}"] + self._build_header()
         self.items = self._build_items()
         if self.items and not self.items[self.cursor].enabled:
             self.cursor = menu_move(self.items, self.cursor, 1)
@@ -123,72 +124,95 @@ class HomeView(View):
     def _build_items(self) -> list[MenuItem]:
         role = self.ctx.role
         valid = self.token.ok
+        identity = self.app.identity
         items: list[MenuItem] = []
 
-        if role is Role.OFFICIAL:
+        def repo_management(include_domains: bool, include_login: bool) -> None:
+            if role in (Role.PRIVATE, Role.PRIVATE_UNVERIFIED) and self._pending_init():
+                items.append(
+                    MenuItem("完成初始化", "导入 official.crt 后签名", action="finish_init")
+                )
+            if include_login:
+                items.append(
+                    MenuItem("登录开发者中心", "重新登录 / 切换账号", action="login")
+                )
             items.append(MenuItem("管理包", "签名、索引、发布", action="packages"))
             items.append(MenuItem("管理开发者", "证书签发与吊销", action="developers"))
-            items.append(MenuItem("私域管理", "域列表 / 签发 / 吊销", action="domains"))
+            if include_domains:
+                items.append(MenuItem("私域管理", "域列表 / 签发 / 吊销", action="domains"))
             items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
-            items.append(MenuItem("更新吊销列表", "仅刷新 updatedAt 并重签", action="update_revoke"))
+            items.append(
+                MenuItem("更新吊销列表", "仅刷新 updatedAt 并重签", action="update_revoke")
+            )
             items.append(MenuItem("设置 / 诊断", "", action="settings"))
             items.append(MenuItem("退出", "", action="exit"))
-            return items
 
-        if role in (Role.PRIVATE, Role.PRIVATE_UNVERIFIED):
-            if not valid:
-                items.append(
-                    MenuItem("登录开发者中心", "需要先登录", action="login")
-                )
-                items.append(
-                    MenuItem("生成签名请求", "无需登录，提交到 requests/", action="generate_request")
-                )
+        if identity is Identity.OFFICIAL_ADMIN:
+            if role is Role.OFFICIAL:
+                repo_management(include_domains=True, include_login=False)
+            elif role in (Role.PRIVATE, Role.PRIVATE_UNVERIFIED):
+                repo_management(include_domains=False, include_login=False)
+            elif role is Role.UNINITIALIZED:
+                items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
+                items.append(MenuItem("设置 / 诊断", "", action="settings"))
                 items.append(MenuItem("退出", "", action="exit"))
-                return items
-            if self._pending_init():
-                items.append(
-                    MenuItem(
-                        "完成初始化",
-                        "导入 official.crt 后签名",
-                        action="finish_init",
-                    )
-                )
-            items.append(MenuItem("登录开发者中心", "重新登录 / 切换账号", action="login"))
-            items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
-            items.append(MenuItem("管理包", "", action="packages"))
-            items.append(MenuItem("管理开发者", "", action="developers"))
-            items.append(MenuItem("更新吊销列表", "仅刷新 updatedAt 并重签", action="update_revoke"))
-            items.append(MenuItem("设置 / 诊断", "", action="settings"))
-            items.append(MenuItem("退出", "", action="exit"))
+            else:
+                items.append(MenuItem("设置 / 诊断", "", action="settings"))
+                items.append(MenuItem("退出", "", action="exit"))
             return items
 
-        if role is Role.UNINITIALIZED:
-            if valid:
+        if identity is Identity.PRIVATE_ADMIN:
+            if role is Role.UNINITIALIZED:
+                if not valid:
+                    items.append(MenuItem("登录开发者中心", "初始化前需要登录", action="login"))
+                    items.append(
+                        MenuItem("生成签名请求", "无需登录，提交到 requests/", action="generate_request")
+                    )
+                    items.append(MenuItem("退出", "", action="exit"))
+                    return items
                 if self.ctx.index_path.is_file():
                     items.append(
-                        MenuItem(
-                            "完成初始化",
-                            "等待 official.crt",
-                            action="finish_init",
-                        )
+                        MenuItem("完成初始化", "等待 official.crt", action="finish_init")
                     )
                 else:
                     items.append(MenuItem("初始化私域仓库", "生成密钥与签名请求", action="init"))
                 items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
                 items.append(MenuItem("设置 / 诊断", "", action="settings"))
                 items.append(MenuItem("退出", "", action="exit"))
-            else:
-                items.append(
-                    MenuItem("登录开发者中心", "初始化前需要登录", action="login")
-                )
-                items.append(
-                    MenuItem("生成签名请求", "无需登录，提交到 requests/", action="generate_request")
-                )
-                items.append(MenuItem("退出", "", action="exit"))
+                return items
+
+            if role in (Role.PRIVATE, Role.PRIVATE_UNVERIFIED):
+                if not valid:
+                    items.append(MenuItem("登录开发者中心", "私域管理员需要登录", action="login"))
+                    items.append(
+                        MenuItem("生成签名请求", "无需登录，提交到 requests/", action="generate_request")
+                    )
+                    items.append(MenuItem("退出", "", action="exit"))
+                    return items
+                repo_management(include_domains=False, include_login=True)
+                return items
+
+            items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
+            items.append(MenuItem("设置 / 诊断", "", action="settings"))
+            items.append(MenuItem("退出", "", action="exit"))
             return items
 
-        items.append(MenuItem("设置 / 诊断", "查看证书问题", action="settings"))
-        items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
+        if identity is Identity.DEVELOPER:
+            items.append(
+                MenuItem(
+                    "发布包（仅签名入库）",
+                    "签名并复制，不更新索引",
+                    action="publish_only",
+                )
+            )
+            items.append(MenuItem("设置 / 诊断", "", action="settings"))
+            items.append(MenuItem("退出", "", action="exit"))
+            return items
+
+        # 未注册：只能请求签名；若仓库未初始化且已登录，允许走初始化引导
+        if role is Role.UNINITIALIZED and valid:
+            items.append(MenuItem("初始化私域仓库", "生成密钥与签名请求", action="init"))
+        items.append(MenuItem("生成签名请求", "申请私域 / 开发者证书", action="generate_request"))
         items.append(MenuItem("退出", "", action="exit"))
         return items
 
@@ -266,6 +290,10 @@ class HomeView(View):
             from .init_repo import FinishInitView
 
             self.app.push(FinishInitView(self.app))
+        elif action == "publish_only":
+            from .packages import publish_wizard
+
+            publish_wizard(self.app, update_index=False)
         elif action == "generate_request":
             from .request import RequestView
 

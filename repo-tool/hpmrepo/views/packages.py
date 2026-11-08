@@ -17,6 +17,8 @@ from .common import (
     official_key_ui,
     rebuild_and_sign,
     sign_existing,
+    sync_delete_package_result,
+    sync_package_result,
 )
 
 
@@ -30,8 +32,9 @@ class PackagesView(MenuView):
 
     def build_items(self) -> list[MenuItem]:
         return [
-            MenuItem("包列表", "查看索引与磁盘状态", action="list"),
-            MenuItem("发布 / 签名包", "tar.gz + sig 入库", action="publish"),
+            MenuItem("包列表", "索引与未索引包", action="list"),
+            MenuItem("发布包（仅签名入库）", "普通开发者可用，不更新索引", action="publish_only"),
+            MenuItem("发布包并更新索引", "需要仓库 official 私钥", action="publish"),
             MenuItem("重建索引", "扫描仓库并生成", action="rebuild"),
             MenuItem("签名索引", "官方私钥", action="sign"),
             MenuItem("签名吊销列表", "官方私钥", action="sign_revoke"),
@@ -45,10 +48,14 @@ class PackagesView(MenuView):
         try:
             data = index_mod.load_index(ctx.root)
             count = index_mod.package_count(data)
+            unindexed = len(packages.unindexed_packages(ctx.root))
         except Exception:  # noqa: BLE001
-            count = 0
+            count = unindexed = 0
         ok, detail = index_mod.verify_index(ctx.root)
-        lines = [f"仓库: {ctx.root}", f"索引: {detail} · 包 {count}"]
+        lines = [
+            f"仓库: {ctx.root}",
+            f"索引: {detail} · 已索引包 {count} · 未索引 {unindexed}",
+        ]
         if self.app.dev and self.app.dev.developer:
             lines.append(f"当前开发者: {self.app.dev.developer}")
         return lines
@@ -57,8 +64,10 @@ class PackagesView(MenuView):
         ctx = self.app.ctx
         if item.action == "list":
             self.app.push(PackageListView(self.app))
+        elif item.action == "publish_only":
+            publish_wizard(self.app, update_index=False)
         elif item.action == "publish":
-            publish_wizard(self.app)
+            publish_wizard(self.app, update_index=True)
         elif item.action == "rebuild":
             key = official_key_ui(self.app, ctx)
             if key is None:
@@ -103,13 +112,21 @@ class PackageListView(View):
 
     def reload(self) -> None:
         try:
-            self.rows = packages.verify_all(self.app.ctx.root)
+            self.rows = packages.list_all(self.app.ctx.root)
         except Exception:  # noqa: BLE001
             self.rows = []
         if self.cursor >= len(self.rows):
             self.cursor = max(0, len(self.rows) - 1)
 
     def _status(self, row: packages.PackageVersion) -> str:
+        if not row.indexed:
+            if row.revoked:
+                return "未索引 / 证书已吊销"
+            if not row.sig_ok:
+                return "未索引 / " + (row.issues[0] if row.issues else "签名无效")
+            if row.kind == "?":
+                return "未索引 / 清单无效"
+            return "未加入索引"
         if row.revoked:
             return "证书已吊销"
         if not row.installed:
@@ -162,8 +179,14 @@ class PackageListView(View):
         tip = "Enter 详情 · ↑↓ 移动 · PgUp/PgDn · r 刷新 · Esc 返回"
         if self.rows:
             issues = sum(1 for r in self.rows if not r.ok)
+            unindexed = sum(1 for r in self.rows if not r.indexed)
+            prefix = []
             if issues:
-                tip = f"{issues} 个版本异常 · " + tip
+                prefix.append(f"{issues} 个版本异常")
+            if unindexed:
+                prefix.append(f"{unindexed} 个未索引")
+            if prefix:
+                tip = " · ".join(prefix) + " · " + tip
         draw_footer(screen, tip)
 
     def handle_key(self, key) -> None:
@@ -191,6 +214,9 @@ class PackageListView(View):
         elif key.name in ("enter", "right"):
             self.app.push(PackageDetailView(self.app, self.rows[self.cursor]))
 
+    def on_resume(self) -> None:
+        self.reload()
+
 
 class PackageDetailView(View):
     def __init__(self, app, row: packages.PackageVersion) -> None:
@@ -213,6 +239,7 @@ class PackageDetailView(View):
             f"签名:     {row.sig_path or '缺失'}",
             "",
             f"状态:     {'正常' if row.ok else '异常'}",
+            f"索引:     {'已加入' if row.indexed else '未加入'}",
         ]
         for issue in row.issues or []:
             lines.append(f"  - {issue}")
@@ -220,16 +247,30 @@ class PackageDetailView(View):
         for line in lines:
             screen.put(4, y, ellipsize(line, screen.w - 8), st(fg="text"))
             y += 1
-        draw_footer(screen, "d 删除该版本 · Esc 返回")
+        draw_footer(screen, "a 加入索引 · d 删除 · Esc 返回" if not row.indexed else "d 删除该版本 · Esc 返回")
 
     def handle_key(self, key) -> None:
         if key.name == "esc":
             self.app.pop()
+        elif key.name == "char" and key.char == "a" and not self.row.indexed:
+            self._add_to_index()
         elif key.name == "char" and key.char == "d":
             self._delete()
 
     def _delete(self) -> None:
         row = self.row
+        if not row.indexed:
+            if not self.app.confirm(
+                "删除未索引包",
+                [f"确定删除 {row.package}@{row.version} 的文件？", "不会修改索引。"],
+                danger=True,
+            ):
+                return
+            removed = packages.remove_package_files(row)
+            self.app.toast(f"已删除 {len(removed)} 个文件", "ok")
+            self.app.pop()
+            return
+
         if not self.app.confirm(
             "删除版本",
             [
@@ -247,8 +288,56 @@ class PackageDetailView(View):
             return
         rebuild_and_sign(self.app, ctx, key)
         log.log_action("package_delete", f"{row.package}@{row.version}")
-        self.app.toast("已删除并重建索引", "ok")
+        data = index_mod.load_index(ctx.root)
+        remaining = (
+            ((data.get("packages") or {}).get(row.package) or {}).get("versions") or {}
+        )
+        if remaining:
+            note = "包仍有其他版本，未远程删除"
+        else:
+            note = sync_delete_package_result(self.app, row.package)
+        self.app.toast(
+            "已删除并重建索引" + (f" · {note}" if note else ""), "ok", 5
+        )
         commit_ui(self.app, ctx, f"Remove {row.package} {row.version}")
+        self.app.pop()
+
+    def _add_to_index(self) -> None:
+        row = self.row
+        ctx = self.app.ctx
+        if row.revoked:
+            self.app.error("开发者证书已吊销，不能加入索引")
+            return
+        if not row.sig_ok:
+            self.app.error("包签名无效", "请让开发者重新签名后再加入索引。")
+            return
+        if row.kind == "?":
+            self.app.error("无法识别包清单", "tar.gz 内需要有 manifest.json / chip.json。")
+            return
+        key = official_key_ui(self.app, ctx)
+        if key is None:
+            return
+        self.app.busy("加入索引", f"正在将 {row.package}@{row.version} 写入索引…")
+        rebuild_and_sign(self.app, ctx, key)
+        data = index_mod.load_index(ctx.root)
+        versions = ((data.get("packages") or {}).get(row.package) or {}).get(
+            "versions", {}
+        )
+        if row.version not in versions:
+            self.app.error(
+                "加入索引失败",
+                "重建索引后仍未找到该包，请检查文件名与清单。",
+            )
+            return
+        log.log_action("package_index", f"{row.package}@{row.version}")
+        sync_note = sync_package_result(self.app, row.package, row.version)
+        self.app.toast(
+            f"已加入索引: {row.package}@{row.version}"
+            + (f" · {sync_note}" if sync_note else ""),
+            "ok",
+            5,
+        )
+        commit_ui(self.app, ctx, f"Add {row.package} {row.version} to index")
         self.app.pop()
 
 
@@ -295,7 +384,7 @@ class VerifyView(View):
             self.offset = max(0, self.offset - 1)
 
 
-def publish_wizard(app) -> None:
+def publish_wizard(app, *, update_index: bool = True) -> None:
     ctx = app.ctx
     if ctx.role is Role.UNINITIALIZED:
         app.error("仓库未初始化", "请先完成私域仓库初始化。")
@@ -381,6 +470,21 @@ def publish_wizard(app) -> None:
             return
 
     packages.install_package(ctx.root, tar, sig_path, developer)
+    if not update_index:
+        log.log_action("package_install", f"{tar.name} by {developer}")
+        app.toast(f"已签名入库 {tar.name}，等待管理员加入索引", "ok", 5)
+        app.info(
+            "包已入库",
+            [
+                f"开发者: {developer}",
+                f"包: {dest_dir / tar.name}",
+                f"签名: {dest_dir / (tar.name + '.sig')}",
+                "",
+                "本操作没有更新索引。",
+                "仓库管理员会在包列表中看到「未加入索引」，进入详情按 a 加入索引。",
+            ],
+        )
+        return
     official = official_key_ui(app, ctx)
     if official is None:
         app.toast("包已入库，但索引未更新", "warn")
@@ -402,8 +506,24 @@ def publish_wizard(app) -> None:
         app.error("发布后索引校验失败", detail)
         return
 
+    matched_package = None
+    for pkg_name, pkg in (data.get("packages") or {}).items():
+        for ver, entry in (pkg.get("versions") or {}).items():
+            if str(entry.get("url", "")).endswith(tar.name):
+                matched_package = (pkg_name, ver)
+                break
+        if matched_package:
+            break
+    sync_note = ""
+    if matched_package:
+        sync_note = sync_package_result(app, matched_package[0], matched_package[1])
+
     log.log_action("package_publish", f"{tar.name} by {developer}")
-    app.toast(f"已发布 {tar.name}", "ok", 3)
+    app.toast(
+        f"已发布 {tar.name}" + (f" · {sync_note}" if sync_note else ""),
+        "ok",
+        5,
+    )
     commit_ui(app, ctx, f"Publish {tar.name}")
 
 

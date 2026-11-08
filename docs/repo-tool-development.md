@@ -399,7 +399,14 @@ app.foo = args.foo
   空目录时显示提示并返回。`issue_request()` 落盘证书并归档，同时从收件目录/旧 `incoming/` 删除请求。
 - 新增请求类型时，记得同步 `validate_request_data()`、`_san_for()`、`_common_name()` 与 UI 菜单。
 
-### 4.12 私域管理与域证书
+### 4.12 未索引包
+
+- `packages.list_all(root)` = 已索引包 + `unindexed_packages(root)`；后者扫描 `<developer>/*.tar.gz`，按文件名/清单推导包名与版本，用开发者证书验签。
+- 普通开发者发布：`publish_wizard(app, update_index=False)`，只签名并复制，不碰索引。
+- 管理员加入索引：`PackageDetailView._add_to_index()` → `rebuild_and_sign()` → 校验该版本确实进入 `index.json`。
+- 列表返回父视图时通过 `on_resume()` 重新加载（`App.pop()` 会调用父视图的该方法）。
+
+### 4.13 私域管理与域证书
 
 - 列表：`core/domains.py` 的 `list_domains(root)` 合并 `domain.yaml` 与 `outgoing/*.crt`，
   返回 `DomainEntry(name, index, cert_url, local_cert, cert, registered, revoked)`。
@@ -412,7 +419,7 @@ app.foo = args.foo
 - 刷新日期：`core/revoke.touch()` 只改 `updatedAt`；主页调用 `views/common.update_revoke_list()` 重签。
 - 新增域相关操作时放在 `DomainManagementView`，不要塞回「管理开发者」。
 
-### 4.13 域证书签完后自动登记
+### 4.14 域证书签完后自动登记
 
 目前 `sign_domain_wizard()` 只把证书写到 `outgoing/`。若要自动维护主仓库的 `domain.yaml`：
 
@@ -511,6 +518,8 @@ python3 tests/pty_smoke.py
 | `HPM_ROOT_CA` | 覆盖内置根证书 PEM 文件 |
 | `HPM_KEY_PASSWORD` | 非交互场景的私钥密码 |
 | `HPM_ALLOW_UNENCRYPTED` | 测试用：跳过「未加密私钥」迁移提示 |
+| `HPM_DISABLE_CENTER_SYNC` | 测试/离线：关闭开发者中心同步 |
+| `HPM_APP_ID` / `HPM_APP_KEY` / `HPM_API_BASE` | 覆盖开发者中心应用凭据 |
 | `HPM_DEV_BIN` | 指定登录程序 |
 | `NO_COLOR` | 禁用颜色 |
 

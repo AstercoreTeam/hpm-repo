@@ -62,9 +62,9 @@ pip3 install -r repo-tool/requirements.txt
 | 功能 | 说明 |
 |------|------|
 | 仓库识别 | 读取根目录 `official.crt`，判定官方仓库 / 私域仓库 / 未初始化 |
-| 登录 | 委托 `hpm-dev login`，不接触 AppKey，不写 `dev.json` |
+| 登录 | 仅私域管理员需要；委托 `hpm-dev login`，不写 `dev.json` |
 | 生成签名请求 | 未登录、登录页、主页均可使用；生成 domain/developer 请求到 `repo-tool/requests/` |
-| 包管理 | 列表与磁盘对账、签名 tar.gz、入库、删除版本、重建/签名索引、发布后校验 |
+| 包管理 | 未索引包可见；普通开发者可仅签名入库；管理员在详情页加入索引；删除版本；重建/签名索引 |
 | 开发者管理 | 查看证书、读取 `requests/` 请求列表、签发/吊销/删除开发者、导出证书与回执 |
 | 私域管理 | 官方仓库主界面的「私域管理」：私域列表、签发证书、登记证书、吊销/删除域 |
 | 更新吊销列表 | 主页主菜单：仅刷新 `revoke.json` 的 `updatedAt` 并重签，不改条目 |
@@ -73,12 +73,34 @@ pip3 install -r repo-tool/requirements.txt
 | 仓库校验 | 索引签名、包哈希/签名、证书链、私钥忽略规则 |
 | Git | 查看状态、按操作提交、推送（禁用交互式凭据提示，永不 force push） |
 
-### 角色与登录规则
+### 身份与权限
 
-- **官方仓库**：`official.crt` 的 SAN 为 `hpm://official`，且由内置根证书签发。完全免登录，远程地址来自 `git remote -v`。
-- **私域仓库**：`official.crt` 的 SAN 为 `hpm://domain/<name>`。Token 来自 `~/.hpm/dev.json`（只读）；无 Token 时主页显示登录与「生成签名请求」。
-- **未初始化**：没有 `official.crt`，可先「生成签名请求」提交给官方，有 Token 后也可「初始化私域仓库」。
-- Token 由 `hpm-dev login` 写入，默认 1 天有效；过期后重新登录。
+身份**只检测私钥文件是否存在，不验证私钥内容**；即使绕过界面，没有正确私钥也无法完成签名。
+
+| 身份 | 检测依据 | 登录开发者中心 | 可用功能 |
+|------|----------|----------------|----------|
+| 未注册 | 没有可用私钥 | 否 | 生成签名请求（申请私域/开发者证书） |
+| 普通开发者 | `~/.hpm/keys/dev/<name>/<name>.key` | 否 | 发布包（仅签名入库），不改索引 |
+| 私域管理员 | `~/.hpm/keys/domain/<domain>/official.key` | **是** | 管理包、管理开发者、签名索引、更新/吊销列表、维护仓库；同步数据到开发者中心 |
+| HPM 官方管理员 | `~/.hpm/keys/official.key` | 否 | 私域管理员的全部仓库功能 + 管理私域（签域证书/登记/删除域） |
+
+- 优先级：官方管理员 > 私域管理员 > 普通开发者 > 未注册。
+- 官方仓库只认 `keys/official.key`；域私钥不会获得官方仓库管理权。
+- 私域管理员未登录时主页只显示登录与生成签名请求；Token 来自 `~/.hpm/dev.json`，默认 1 天有效。
+- 官方管理员无需登录，也不参与开发者中心同步。
+- 普通开发者发布包时只复制 tar.gz/.sig 到 `<developer>/`，由管理员在包详情页加入索引。
+
+### 开发者中心同步（仅私域管理员）
+
+私域管理员登录后，每次增改开发者或包会同步一次：
+
+- 新增/重签开发者：`update_developer`（`<name>.pub`、`<name>.pub.sig`）；
+- 更新包：`update_package`（URL、签名 URL、sha256、size、license、requires）；
+- 删除开发者：`delete_developer`；
+- 删除包：`delete_package`（开发者中心按包名删除全部版本；本地仍保留其他版本时不远程删除）；
+- 目标在开发者中心不存在（404）按已删除处理；
+- 同步失败不会影响本地操作，会以提示形式显示原因；
+- 可用 `HPM_DISABLE_CENTER_SYNC=1` 临时关闭同步。
 
 ### 签名请求与签发
 
@@ -99,6 +121,8 @@ pip3 install -r repo-tool/requirements.txt
 - 域请求带索引/证书 URL，签发成功后自动写入 `domain.yaml` 并重建签名索引；
 - 已有证书但未登记时，用「私域管理 → 登记证书」补登记；
 - 删除开发者/域时会移除对应目录、`outgoing` 文件与索引，可在删除前选择是否同时吊销证书。
+- 普通开发者：管理包 →「发布包（仅签名入库）」，只复制并签名，不改索引；
+- 仓库密钥持有者：包列表会显示「未加入索引」的包，Enter 进详情后按 `a` 加入索引。
 
 ### 密钥与密码
 
@@ -118,8 +142,8 @@ pip3 install -r repo-tool/requirements.txt
 
 ```bash
 cd repo-tool
-python3 -m pytest -q          # 24 项单元/集成测试
-python3 tests/pty_smoke.py    # 15 个 pty 端到端场景
+python3 -m pytest -q          # 30 项单元/集成测试
+python3 tests/pty_smoke.py    # 16 个 pty 端到端场景
 ```
 
 ### 文档

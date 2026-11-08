@@ -96,6 +96,11 @@ def _read_package_meta(tar_path: Path, fallback_chip: str = "") -> dict[str, Any
     return None
 
 
+def read_package_meta(tar_path: Path, fallback_chip: str = "") -> dict[str, Any] | None:
+    """公开的包清单读取入口，供未索引包扫描复用。"""
+    return _read_package_meta(Path(tar_path), fallback_chip)
+
+
 def _parse_filename(name: str) -> tuple[str | None, str | None, str | None]:
     from .packages import parse_filename
 

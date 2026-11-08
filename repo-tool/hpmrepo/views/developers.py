@@ -18,6 +18,8 @@ from .common import (
     official_key_ui,
     rebuild_and_sign,
     resolve_request_path,
+    sync_delete_developer_result,
+    sync_developer_result,
 )
 
 REASONS = {
@@ -249,6 +251,7 @@ def add_developer_wizard(app) -> None:
     )
 
     rebuild_and_sign(app, ctx, key)
+    sync_note = sync_developer_result(app, req.name)
     log.log_action("developer_issue", f"{req.name} serial={info.serial}")
     app.info(
         "证书已生成",
@@ -257,6 +260,7 @@ def add_developer_wizard(app) -> None:
             f"发送给对方: {send_cert}",
             f"序列号: {info.serial}",
             f"指纹: {info.fingerprint}",
+            *( ["", sync_note] if sync_note else [] ),
             "",
             "请让开发者把证书放到自己仓库的 <developer>/<developer>.crt。",
         ],
@@ -511,7 +515,12 @@ def delete_developer_wizard(app) -> None:
 
     rebuild_and_sign(app, ctx, key)
     log.log_action("developer_delete", developer.name)
-    app.toast(f"已删除开发者 {developer.name}", "ok", 3)
+    note = sync_delete_developer_result(app, developer.name)
+    app.toast(
+        f"已删除开发者 {developer.name}" + (f" · {note}" if note else ""),
+        "ok",
+        5,
+    )
     commit_ui(
         app,
         ctx,

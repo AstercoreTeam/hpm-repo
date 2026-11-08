@@ -33,10 +33,12 @@ class PackageVersion:
     sig_ok: bool = False
     revoked: bool = False
     issues: list[str] | None = None
+    indexed: bool = True
 
     @property
     def ok(self) -> bool:
-        return self.installed and self.hash_ok and self.sig_ok and not self.revoked
+        base = self.installed and self.sig_ok and not self.revoked
+        return base and self.hash_ok if self.indexed else base
 
 
 def parse_filename(name: str) -> tuple[str | None, str | None, str | None]:
@@ -146,6 +148,114 @@ def verify_version(root: Path, entry: dict[str, Any]) -> PackageVersion:
 
 def verify_all(root: Path) -> list[PackageVersion]:
     return [verify_version(root, e) for e in index_packages(root)]
+
+
+def unindexed_packages(root: Path) -> list[PackageVersion]:
+    """磁盘上存在、但还没有写进 index.json 的包。"""
+    root = Path(root)
+    indexed = {(row["package"], row["version"]) for row in index_packages(root)}
+    ignore = {
+        ".git", "publish", "__pycache__", ".github", "toolchains",
+        "repo-tool", "incoming", "requests", "outgoing", "docs",
+    }
+    result: list[PackageVersion] = []
+    if not root.is_dir():
+        return result
+
+    for dev_dir in sorted(root.iterdir()):
+        if not dev_dir.is_dir() or dev_dir.name in ignore or dev_dir.name.startswith("."):
+            continue
+        developer = dev_dir.name
+        cert_path = dev_dir / f"{developer}.crt"
+        cert = None
+        if cert_path.is_file():
+            try:
+                cert = crypto.load_cert(cert_path)
+            except crypto.CryptoError:
+                cert = None
+
+        for tar in sorted(dev_dir.glob("*.tar.gz")):
+            driver, chip, version = parse_filename(tar.name)
+            if not driver or not version:
+                continue
+            meta = index_mod.read_package_meta(tar, fallback_chip=chip or "")
+            if meta is None:
+                package = f"{driver}-{chip}" if chip else driver
+                kind, chip_final = "?", chip or ""
+            elif meta["kind"] == "chip":
+                package, chip_final, kind = driver, driver, "chip"
+            else:
+                if not chip:
+                    continue
+                package, chip_final, kind = f"{driver}-{chip}", chip, "driver"
+            if (package, version) in indexed:
+                continue
+
+            sig_path = tar.with_name(tar.name + ".sig")
+            issues: list[str] = []
+            sig_ok = False
+            if sig_path.is_file() and cert is not None:
+                sig_ok = crypto.verify_signature_with_cert(
+                    cert, tar.read_bytes(), sig_path.read_bytes()
+                )
+                if not sig_ok:
+                    issues.append("包签名无效")
+            elif not sig_path.is_file():
+                issues.append("缺少签名")
+            else:
+                issues.append("缺少开发者证书")
+
+            revoked_flag = False
+            if cert is not None:
+                info = crypto.cert_info(cert)
+                revoked_flag = revoke.is_revoked(
+                    root, serial=info.serial, fingerprint=info.fingerprint
+                )
+                if revoked_flag:
+                    issues.append("开发者证书已吊销")
+            if meta is None:
+                issues.append("无法识别包清单，加入索引会失败")
+
+            result.append(
+                PackageVersion(
+                    package=package,
+                    version=version,
+                    kind=kind,
+                    chip=chip_final,
+                    developer=developer,
+                    url="",
+                    sig_url="",
+                    sha256=sha256_file(tar),
+                    size=tar.stat().st_size,
+                    license=(meta or {}).get("license", ""),
+                    description=(meta or {}).get("description", ""),
+                    tar_path=tar,
+                    sig_path=sig_path if sig_path.is_file() else None,
+                    installed=True,
+                    hash_ok=False,
+                    sig_ok=sig_ok,
+                    revoked=revoked_flag,
+                    issues=issues,
+                    indexed=False,
+                )
+            )
+    return result
+
+
+def list_all(root: Path) -> list[PackageVersion]:
+    rows = verify_all(root) + unindexed_packages(root)
+    rows.sort(key=lambda r: (r.package, r.version, r.developer))
+    return rows
+
+
+def remove_package_files(row: PackageVersion) -> list[Path]:
+    """删除未索引包的文件（tar 与 sig）。"""
+    removed: list[Path] = []
+    for path in (row.tar_path, row.sig_path):
+        if path is not None and Path(path).is_file():
+            Path(path).unlink()
+            removed.append(Path(path))
+    return removed
 
 
 def sign_file(key, path: Path, sig_path: Path | None = None) -> Path:

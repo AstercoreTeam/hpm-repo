@@ -115,6 +115,7 @@ def make_env(root: Path, home: Path, **extra: str) -> dict[str, str]:
         "HPM_HOME": str(home),
         "HPM_REQUESTS_DIR": str(requests_dir(home)),
         "HPM_ALLOW_UNENCRYPTED": "1",
+        "HPM_DISABLE_CENTER_SYNC": "1",
         "HPM_OFFICIAL_CERT": extra.pop(
             "HPM_OFFICIAL_CERT", str(Path.home() / ".hpm" / "official.crt")
         ),
@@ -131,13 +132,13 @@ def scenario_home() -> None:
         home = base / "home"
         home.mkdir()
         session = Session(make_env(root, home), "--no-animation")
-        session.wait_for("登录开发者中心")
+        session.wait_for("生成签名请求")
         text = plain(session.buffer)
-        assert "管理包" not in text, "无 Token 时不应出现管理包"
+        assert "管理包" not in text, "未注册用户不应出现管理包"
         session.send("\r")
-        session.wait_for("将执行")
+        session.wait_for("私域仓库请求")
         session.send("\x1b")
-        session.wait_for("登录开发者中心")
+        session.wait_for("生成签名请求")
         code = session.close()
         assert code == 0, code
 
@@ -150,12 +151,15 @@ def scenario_official() -> None:
         (root / "official.crt").write_bytes((REPO_ROOT / "official.crt").read_bytes())
         home = base / "home"
         home.mkdir()
+        key_path = home / "keys" / "official.key"
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        key_path.write_text("-----BEGIN PRIVATE KEY-----\ndummy\n-----END PRIVATE KEY-----\n", encoding="utf-8")
         session = Session(make_env(root, home), "--no-animation")
         session.wait_for("管理包")
         text = plain(session.buffer)
         assert "登录开发者中心" not in text
         session.send("\r")  # 管理包
-        session.wait_for("发布 / 签名包")
+        session.wait_for("发布包（仅签名入库）")
         session.send("\x1b")
         session.send("q")
         code = session.proc.wait(timeout=3)
@@ -229,7 +233,7 @@ def scenario_splash() -> None:
         session = Session(make_env(root, home))
         session.wait_for("按任意键跳过")
         session.send(" ")
-        session.wait_for("登录开发者中心")
+        session.wait_for("生成签名请求")
         code = session.close()
         assert code == 0, code
 
@@ -303,7 +307,6 @@ def scenario_revoke() -> None:
         env = make_env(root, home, HPM_OFFICIAL_CERT=str(issuer))
         session = Session(env, "--no-animation")
         session.wait_for("管理开发者")
-        session.send("\x1b[B")
         session.send("\x1b[B")
         session.send("\x1b[B")
         time.sleep(0.2)
@@ -416,10 +419,10 @@ def scenario_publish() -> None:
         session = Session(env, "--no-animation")
         session.wait_for("管理包")
         session.send("\x1b[B")
-        session.send("\x1b[B")
         time.sleep(0.2)
         session.send("\r")
-        session.wait_for("发布 / 签名包")
+        session.wait_for("发布包并更新索引")
+        session.send("\x1b[B")
         session.send("\x1b[B")
         time.sleep(0.2)
         session.send("\r")
@@ -456,8 +459,6 @@ def scenario_request_without_login() -> None:
         home.mkdir()
         session = Session(make_env(root, home), "--no-animation")
         session.wait_for("生成签名请求")
-        session.send("\x1b[B")
-        time.sleep(0.2)
         session.send("\r")
         session.wait_for("私域仓库请求")
         session.send("\x1b[B")
@@ -631,7 +632,7 @@ def scenario_no_requests() -> None:
         env = make_env(root, home, HPM_OFFICIAL_CERT=str(issuer))
         session = Session(env, "--no-animation")
         session.wait_for("管理开发者")
-        for _ in range(3):
+        for _ in range(2):
             session.send("\x1b[B")
             time.sleep(0.15)
         session.send("\r")
@@ -759,7 +760,7 @@ def scenario_delete_developer() -> None:
         env = make_env(root, home, HPM_OFFICIAL_CERT=str(issuer))
         session = Session(env, "--no-animation")
         session.wait_for("管理开发者")
-        for _ in range(3):
+        for _ in range(2):
             session.send("\x1b[B")
             time.sleep(0.15)
         session.send("\r")
@@ -897,6 +898,119 @@ def scenario_refresh_revoke_date() -> None:
         os.close(session.master)
 
 
+def scenario_publish_only_then_index() -> None:
+    import io
+    import tarfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        root = base / "repo"
+        root.mkdir()
+        home = base / "home"
+        home.mkdir()
+        issuer = base / "issuer.crt"
+        _prepare_signed_repo(root, home, issuer)
+
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ed25519
+        from hpmrepo.core import crypto, developers as dev_mod, index as index_mod
+
+        dev_key = ed25519.Ed25519PrivateKey.generate()
+        doc = dev_mod.build_request(dev_key, kind="developer", name="alice")
+        inbox = requests_dir(home)
+        inbox.mkdir(parents=True, exist_ok=True)
+        (inbox / "developer-alice.request.json").write_text(
+            json.dumps(doc), encoding="utf-8"
+        )
+        req = dev_mod.load_request(inbox / "developer-alice.request.json", root)
+        official_key = crypto.load_private_key(domain_key_path(home), None)
+        dev_mod.issue_request(root, req, official_key)
+        (root / "alice" / "alice.key").unlink(missing_ok=True)
+        dev_key_path = home / "keys" / "dev" / "alice" / "alice.key"
+        dev_key_path.parent.mkdir(parents=True, exist_ok=True)
+        dev_key_path.write_bytes(
+            dev_key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            )
+        )
+
+        publish = root / "publish"
+        publish.mkdir()
+        tar_path = publish / "demo-ch552-1.0.0.tar.gz"
+        manifest = {
+            "name": "demo",
+            "version": "1.0.0",
+            "chip": "ch552",
+            "description": "demo driver",
+            "provides": {"methods": []},
+            "requires": {},
+        }
+        with tarfile.open(tar_path, "w:gz") as archive:
+            data = json.dumps(manifest).encode()
+            info = tarfile.TarInfo("alice/manifest.json")
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
+
+        (home / "dev.json").write_text(
+            json.dumps(
+                {
+                    "accessToken": "token",
+                    "expiresAt": "2999-01-01T00:00:00Z",
+                    "developer": "alice",
+                }
+            ),
+            encoding="utf-8",
+        )
+        index_mod.rebuild(root)
+        index_mod.sign_index(root, official_key)
+
+        env = make_env(root, home, HPM_OFFICIAL_CERT=str(issuer))
+        session = Session(env, "--no-animation")
+        session.wait_for("管理包")
+        session.send("\x1b[B")
+        time.sleep(0.2)
+        session.send("\r")
+        session.wait_for("发布包（仅签名入库）")
+        session.send("\x1b[B")
+        time.sleep(0.2)
+        session.send("\r")
+        session.wait_for("请输入 tar.gz 路径")
+        session.send("\r")
+        session.wait_for("开发者名")
+        session.send("\r")
+        session.wait_for("包已入库")
+        assert "demo-ch552" not in index_mod.load_index(root)["packages"]
+        session.send("\r")
+        time.sleep(0.3)
+        # 回到包列表：当前光标在「发布包（仅签名入库）」，上移一项
+        session.send("\x1b[A")
+        time.sleep(0.2)
+        session.send("\r")
+        session.wait_for("未加入索引")
+        session.send("\r")
+        session.wait_for("索引:     未加入")
+        session.send("a")
+        deadline = time.monotonic() + 6
+        while time.monotonic() < deadline:
+            data = index_mod.load_index(root)
+            if "demo-ch552" in (data.get("packages") or {}):
+                break
+            time.sleep(0.05)
+        assert "demo-ch552" in index_mod.load_index(root)["packages"]
+        ok, detail = index_mod.verify_index(root)
+        assert ok, detail
+        session.send("\x1b")
+        time.sleep(0.2)
+        session.send("\x1b")
+        time.sleep(0.2)
+        session.send("q")
+        session.proc.wait(timeout=3)
+        session.drain(0.2)
+        os.close(session.master)
+
+
 def main() -> int:
     scenarios = [
         ("home/gating", scenario_home),
@@ -913,6 +1027,7 @@ def main() -> int:
         ("delete developer", scenario_delete_developer),
         ("delete domain", scenario_delete_domain),
         ("refresh revoke date", scenario_refresh_revoke_date),
+        ("publish only then index", scenario_publish_only_then_index),
         ("splash", scenario_splash),
     ]
     failed = 0
@@ -1022,8 +1137,8 @@ def scenario_developer() -> None:
         env = make_env(root, home, HPM_OFFICIAL_CERT=str(issuer))
         session = Session(env, "--no-animation")
         session.wait_for("管理开发者")
-        # 主页：完成初始化 / 登录 / 生成请求 / 管理包 / 管理开发者
-        for _ in range(4):
+        # 主页：完成初始化 / 登录 / 管理包 / 管理开发者
+        for _ in range(3):
             session.send("\x1b[B")
             time.sleep(0.15)
         session.send("\r")

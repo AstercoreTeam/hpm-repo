@@ -260,3 +260,90 @@ def update_revoke_list(app) -> None:
         return
     app.toast("吊销列表日期已更新", "ok", 3)
     commit_ui(app, ctx, "Refresh revoke.json date")
+
+
+def sync_developer_result(app, name: str) -> str:
+    """私域管理员增改开发者后同步；其他身份直接跳过。"""
+    import os
+
+    from ..core import center
+    from ..core.identity import Identity
+
+    if os.environ.get("HPM_DISABLE_CENTER_SYNC") == "1":
+        return ""
+    if app.identity is not Identity.PRIVATE_ADMIN:
+        return ""
+    if not app.token.ok:
+        return "未登录，未同步开发者中心"
+    repo_url = app.dev.repo_url if app.dev else ""
+    try:
+        center.sync_developer(repo_url, app.ctx.root, name, app.dev.access_token)
+        log.log_action("center_sync", f"developer {name}")
+        return "已同步开发者到开发者中心"
+    except Exception as exc:  # noqa: BLE001
+        return f"同步开发者失败: {exc}"
+
+
+def sync_package_result(app, package: str, version: str) -> str:
+    import os
+
+    from ..core import center
+    from ..core.identity import Identity
+
+    if os.environ.get("HPM_DISABLE_CENTER_SYNC") == "1":
+        return ""
+    if app.identity is not Identity.PRIVATE_ADMIN:
+        return ""
+    if not app.token.ok:
+        return "未登录，未同步开发者中心"
+    repo_url = app.dev.repo_url if app.dev else ""
+    data = index_mod.load_index(app.ctx.root)
+    entry = (
+        ((data.get("packages") or {}).get(package) or {}).get("versions", {}).get(version)
+    )
+    if not entry:
+        return "索引中没有该版本，未同步"
+    try:
+        center.sync_package(repo_url, package, version, entry, app.dev.access_token)
+        log.log_action("center_sync", f"package {package}@{version}")
+        return "已同步包到开发者中心"
+    except Exception as exc:  # noqa: BLE001
+        return f"同步包失败: {exc}"
+
+
+def _sync_delete_allowed(app) -> bool:
+    import os
+
+    from ..core.identity import Identity
+
+    return (
+        os.environ.get("HPM_DISABLE_CENTER_SYNC") != "1"
+        and app.identity is Identity.PRIVATE_ADMIN
+        and app.token.ok
+    )
+
+
+def sync_delete_developer_result(app, name: str) -> str:
+    from ..core import center
+
+    if not _sync_delete_allowed(app):
+        return ""
+    try:
+        center.delete_developer(name, app.dev.access_token)
+        log.log_action("center_sync", f"delete developer {name}")
+        return "已从开发者中心删除"
+    except Exception as exc:  # noqa: BLE001
+        return f"同步删除开发者失败: {exc}"
+
+
+def sync_delete_package_result(app, package: str) -> str:
+    from ..core import center
+
+    if not _sync_delete_allowed(app):
+        return ""
+    try:
+        center.delete_package(package, app.dev.access_token)
+        log.log_action("center_sync", f"delete package {package}")
+        return "已从开发者中心删除包"
+    except Exception as exc:  # noqa: BLE001
+        return f"同步删除包失败: {exc}"
