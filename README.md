@@ -17,8 +17,10 @@ hpm-repo/
 │   └── repo-tool-development.md hrm 开发与扩展指南
 ├── index.json              仓库索引（schema 2）
 ├── index.json.sig          索引签名（官方证书私钥签）
-├── revoke.json             证书吊销列表（可选，官方私钥签）
-├── revoke.json.sig         吊销列表签名
+├── revoke.json             仓库级吊销列表（可选，仓库 official 私钥签）
+├── revoke.json.sig         仓库级吊销列表签名
+├── ROOT_revoke.json        根级吊销列表（可选，根私钥签）
+├── ROOT_revoke.json.sig    根级吊销列表签名
 ├── official.crt            官方仓库证书（Root CA 签发）
 ├── repo-tool/              仓库维护工具 hrm
 │   ├── hrm                     可执行入口

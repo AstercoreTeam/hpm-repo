@@ -36,7 +36,7 @@ hpm-repo/
 ├── index.json.sig              官方证书私钥签名
 ├── revoke.json                 仓库级吊销列表（仓库 official 私钥签，可选）
 ├── revoke.json.sig             仓库级吊销列表签名
-├── ROOT_revoke.json            根级吊销列表（根私钥签，可选，不归 hrm 管理）
+├── ROOT_revoke.json            根级吊销列表（根私钥签，hrm 信任根管理）
 ├── ROOT_revoke.json.sig        根级吊销列表签名
 ├── official.crt                官方仓库证书（Root CA 签发）
 ├── xzc/
@@ -187,7 +187,7 @@ git push origin main
 完整的证书层次、签发流程、证书 profile、仓库级 `revoke.json` 和根级
 `ROOT_revoke.json` 见 [证书颁发与吊销机制](certificates.md)。
 
-- 根私钥离线保存；
+- 根私钥离线保存；hrm 只在「信任根管理」操作时临时读取路径，不缓存；
 - 官方私钥只用于签主索引、域证书和仓库级吊销列表；
 - 域私钥用于签域索引、开发者证书和域级吊销列表；
 - 开发者私钥只签自己的包；

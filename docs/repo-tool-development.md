@@ -108,7 +108,7 @@ app.home()          # 重新加载状态并回到主页
 
 | Role | 条件 | 行为 |
 |------|------|------|
-| `OFFICIAL` | SAN `hpm://official` + Root CA 签发 | 免登录 |
+| `OFFICIAL` | SAN `hpm://official` + Root CA 签发 | 官方管理员免登录 |
 | `PRIVATE` | SAN `hpm://domain/<n>` + 官方证书验签通过 | 需要 Token |
 | `PRIVATE_UNVERIFIED` | SAN 正确但无法验签 | 同私域，顶栏告警 |
 | `UNINITIALIZED` | 无 `official.crt` | 可初始化 |
