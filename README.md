@@ -11,6 +11,7 @@ hpm-repo/
 ├── README.md               本文件（仓库根目录唯一文档）
 ├── docs/                   全部文档
 │   ├── repo.md                  仓库维护（索引、信任链、发布流程、镜像、排障）
+│   ├── certificates.md          证书颁发与吊销机制（含 ROOT_revoke.json）
 │   ├── repo-tool.md             hrm 使用说明
 │   ├── repo-tool-design.md      hrm 设计与实现
 │   └── repo-tool-development.md hrm 开发与扩展指南
@@ -67,6 +68,7 @@ pip3 install -r repo-tool/requirements.txt
 | 包管理 | 未索引包可见；普通开发者可仅签名入库；管理员在详情页加入索引；删除版本；重建/签名索引 |
 | 开发者管理 | 查看证书、读取 `requests/` 请求列表、签发/吊销/删除开发者、导出证书与回执 |
 | 私域管理 | 官方仓库主界面的「私域管理」：私域列表、签发证书、登记证书、吊销/删除域 |
+| 信任根管理 | 官方仓库主界面：签发官方证书、吊销官方证书、更新 ROOT 吊销列表日期；每次操作重新输入根私钥路径，不缓存 |
 | 更新吊销列表 | 主页主菜单：仅刷新 `revoke.json` 的 `updatedAt` 并重签，不改条目 |
 | 吊销证书 | 生成并签名根目录 `revoke.json` |
 | 初始化私域仓库 | 建 Git 仓库、生成加密的 official 密钥、生成官方签名请求、配置远程 |
@@ -82,7 +84,7 @@ pip3 install -r repo-tool/requirements.txt
 | 未注册 | 没有可用私钥 | 否 | 生成签名请求（申请私域/开发者证书） |
 | 普通开发者 | `~/.hpm/keys/dev/<name>/<name>.key` | 否 | 发布包（仅签名入库），不改索引 |
 | 私域管理员 | `~/.hpm/keys/domain/<domain>/official.key` | **是** | 管理包、管理开发者、签名索引、更新/吊销列表、维护仓库；同步数据到开发者中心 |
-| HPM 官方管理员 | `~/.hpm/keys/official.key` | 否 | 私域管理员的全部仓库功能 + 管理私域（签域证书/登记/删除域） |
+| HPM 官方管理员 | `~/.hpm/keys/official.key` | 否 | 私域管理员的全部仓库功能 + 管理私域 + 信任根管理（需根私钥路径） |
 
 - 优先级：官方管理员 > 私域管理员 > 普通开发者 > 未注册。
 - 官方仓库只认 `keys/official.key`；域私钥不会获得官方仓库管理权。
@@ -121,7 +123,7 @@ pip3 install -r repo-tool/requirements.txt
 - 域请求带索引/证书 URL，签发成功后自动写入 `domain.yaml` 并重建签名索引；
 - 已有证书但未登记时，用「私域管理 → 登记证书」补登记；
 - 删除开发者/域时会移除对应目录、`outgoing` 文件与索引，可在删除前选择是否同时吊销证书。
-- 普通开发者：管理包 →「发布包（仅签名入库）」，只复制并签名，不改索引；
+- 普通开发者：管理包 →「发布包（仅签名入库）」，只复制并签名，不改索引；`publish/` 或 `repo-tool/publish/` 有文件时列出全部包，确认后批量发布，并从 publish 删除源文件；都为空才要求输入路径；
 - 仓库密钥持有者：包列表会显示「未加入索引」的包，Enter 进详情后按 `a` 加入索引。
 
 ### 密钥与密码
@@ -142,12 +144,13 @@ pip3 install -r repo-tool/requirements.txt
 
 ```bash
 cd repo-tool
-python3 -m pytest -q          # 30 项单元/集成测试
-python3 tests/pty_smoke.py    # 16 个 pty 端到端场景
+python3 -m pytest -q          # 33 项单元/集成测试
+python3 tests/pty_smoke.py    # 17 个 pty 端到端场景
 ```
 
 ### 文档
 
+- [证书颁发与吊销机制](docs/certificates.md)
 - [hrm 使用说明](docs/repo-tool.md)
 - [hrm 设计与实现](docs/repo-tool-design.md)
 - [hrm 开发与扩展指南](docs/repo-tool-development.md)
@@ -157,18 +160,15 @@ python3 tests/pty_smoke.py    # 16 个 pty 端到端场景
 
 ```
 HPM Root CA（内置在 hpm 客户端）
-    ↓ 签发
-official.crt（官方仓库证书）
-    ↓ 验证
-index.json.sig → index.json
-    ↓ 主索引 domains.<name>.cert
-<domain>/official.crt（域仓库证书）
-    ↓ 验证
-域 index.json.sig
-    ↓ 域索引 developers.<name>.cert
-developer.crt（开发者证书）
-    ↓ 验证
-<package>.tar.gz.sig → <package>.tar.gz
+    ├─ 签发 → official.crt（官方仓库证书）
+    │            ├─ 验签 → index.json.sig → index.json
+    │            ├─ 验签 → revoke.json.sig → revoke.json
+    │            └─ 签发 → <domain>/official.crt（域仓库证书）
+    │                        ├─ 验签 → 域 index.json.sig
+    │                        └─ 签发 → developer.crt
+    │                                    └─ 验签 → <package>.tar.gz.sig
+    └─ 签发 → ROOT_revoke.json.sig → ROOT_revoke.json
+                  （先检查 official.crt 是否被根吊销）
 ```
 
 ## 镜像
@@ -177,11 +177,23 @@ developer.crt（开发者证书）
 
 - `index.json` + `index.json.sig`
 - `revoke.json` + `revoke.json.sig`（存在时）
+- `ROOT_revoke.json` + `ROOT_revoke.json.sig`（根维护者生成，原样同步）
 - `official.crt`
 - 所有 `<developer>/` 目录
 - 域仓库根目录的 `official.crt`（由域仓库自己维护）
 
 旧客户端使用 `official.pub` / `*.pub.sig` 的镜像不再兼容。
+
+## 证书与吊销
+
+完整的证书层次、签发流程、仓库级 `revoke.json` 与根级 `ROOT_revoke.json` 规范见
+[证书颁发与吊销机制](docs/certificates.md)。
+
+- `revoke.json` 由 hrm 管理，用仓库 official 私钥签名；
+- `ROOT_revoke.json` 由 HPM Root CA 签名，用于吊销官方证书；
+- 官方管理员可在「信任根管理」中签发/吊销官方证书、刷新根吊销列表；
+- 根私钥每次操作重新输入路径和密码，不进入密钥缓存；
+- 两个文件都需要镜像同步。
 
 ## 相关链接
 

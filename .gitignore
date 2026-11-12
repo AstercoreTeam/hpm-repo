@@ -6,3 +6,4 @@ __pycache__/
 .pytest_cache/
 repo-tool/requests/*
 !repo-tool/requests/.gitkeep
+official.crt.bak

@@ -434,12 +434,13 @@ def issue_certificate(
     serial: int | None = None,
     org: str = "HPM",
 ) -> bytes:
-    if profile not in ("developer", "domain"):
+    if profile not in ("developer", "domain", "official"):
         raise CryptoError(f"未知证书类型: {profile}")
 
     if days is None:
         days = 1095 if profile == "developer" else 1825
-    is_ca = profile == "domain"
+    is_ca = profile in ("domain", "official")
+    path_length = 1 if profile == "official" else (0 if profile == "domain" else None)
 
     builder = (
         x509.CertificateBuilder()
@@ -459,7 +460,7 @@ def issue_certificate(
             dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=days)
         )
         .add_extension(
-            x509.BasicConstraints(ca=is_ca, path_length=0 if is_ca else None),
+            x509.BasicConstraints(ca=is_ca, path_length=path_length),
             critical=True,
         )
         .add_extension(

@@ -304,16 +304,38 @@ def remove_version(root: Path, package: str, version: str) -> list[Path]:
     return removed
 
 
-def default_tarball(root: Path) -> Path | None:
+def publish_candidates(root: Path) -> list[Path]:
+    """待发布的 tar.gz。
+
+    同时支持：
+      <repo>/publish/          （hpm-dev 在仓库根运行）
+      <repo>/repo-tool/publish/（在工具目录运行）
+    按修改时间从新到旧。
+    """
+    from ..repo import tool_dir
+
     root = Path(root)
-    candidates: list[Path] = []
-    for directory in (root / "publish", root):
-        if directory.is_dir():
-            candidates.extend(directory.glob("*.tar.gz"))
-    candidates = [p for p in candidates if not p.name.endswith(".sig")]
-    if not candidates:
-        return None
-    return max(candidates, key=lambda p: p.stat().st_mtime)
+    dirs = [root / "publish"]
+    tool = tool_dir()
+    try:
+        tool.relative_to(root)
+        dirs.append(tool / "publish")
+    except ValueError:
+        pass
+    seen: set[Path] = set()
+    files: list[Path] = []
+    for directory in dirs:
+        if not directory.is_dir():
+            continue
+        for path in directory.glob("*.tar.gz"):
+            if not path.is_file():
+                continue
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            files.append(path)
+    return sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
 
 
 def resolve_cert(root: Path, developer: str) -> Path | None:

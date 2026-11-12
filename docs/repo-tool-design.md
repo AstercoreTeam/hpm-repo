@@ -525,10 +525,11 @@ def detect_role(repo) -> Role:
 
 - **列表**：以 `index.json.packages` 为骨架，与磁盘 `*.tar.gz` 对账；磁盘上存在但未进索引的包也会显示，状态为「未加入索引」。
 - **发布向导（仅签名入库）**：普通开发者可用，不需要 official 私钥：
-  1. 选择包文件；
+  1. `publish/` 或 `repo-tool/publish/` 有 tar.gz 时列出全部包，确认后批量发布；都为空才输入路径；
   2. 用开发者私钥签名（已有有效 `.sig` 可复用）；
   3. 复制到 `<developer>/`；
-  4. **不重建索引**，由管理员后续加入。
+  4. 成功后删除 publish 中的源 tar.gz/.sig；
+  5. **不重建索引**，由管理员后续加入。
 - **发布向导（并更新索引）**：需要 official 私钥，签名入库后重建索引、签索引并全量校验。
 - **详情页**：未索引包按 `a` 用 official 私钥重建/签名索引，将其加入 `index.json`；按 `d` 删除未索引文件或已索引版本。
 - **查看/删除版本**：删除前确认；删除后自动重建并重签索引；`git rm` 交给 Git。
@@ -688,11 +689,28 @@ load_key_with_password(path) -> Key
 
 ### 8.3 客户端配合（需在 `hpm` 侧实现）
 
-1. 下载 `index.json` 同目录的 `revoke.json` + `.sig`，用同一 official 证书验签；
-2. `revoke.json` 缺失：兼容旧仓库，视为「无吊销」，但给出一次警告；
-3. `revoke.json` 存在但签名无效：**拒绝整个仓库**（防止攻击者删记录）；
-4. 校验顺序：先验链与 SAN，再查吊销（序列号或证书 SHA-256），再验包签名；
-5. 离线缓存需带 TTL，过期后重新拉取。
+1. 用内置根证书验证 official.crt；
+2. 下载并验证 `ROOT_revoke.json` + `.sig`（根公钥），检查 official.crt 是否被根吊销；
+3. 下载 `index.json` 同目录的 `revoke.json` + `.sig`，用同一 official 证书验签；
+4. `revoke.json` 缺失：兼容旧仓库，视为「无吊销」，但给出一次警告；
+5. `revoke.json` / `ROOT_revoke.json` 存在但签名无效：**拒绝该仓库/官方证书**；
+6. 校验顺序：先根吊销 → 链与 SAN → 仓库吊销（序列号或证书 SHA-256）→ 包签名；
+7. 离线缓存需带 TTL，过期后重新拉取。
+
+### 8.4 根级 `ROOT_revoke.json` 与“信任根管理”
+
+- 文件名固定 `ROOT_revoke.json`，签名 `ROOT_revoke.json.sig`；
+- 由 HPM Root CA 私钥签名，用于吊销官方证书（以及根直接签发的证书）；
+- 官方仓库主页为 HPM 官方管理员显示「信任根管理」：
+  - 签发官方证书；
+  - 吊销官方证书；
+  - 更新 `ROOT_revoke.json` 的 `updatedAt` 并重签；
+- 每次操作都重新输入根私钥路径；加密私钥再输入密码；**不进入 App 密钥缓存**；
+- 根私钥不写日志、不复制到仓库；
+- 建议放在官方仓库根目录并由镜像原样同步，或由客户端从固定的 `HPM_ROOT_REVOKE_URL` 拉取；
+- 格式、签名命令、客户端策略和轮换流程见 [证书颁发与吊销机制](certificates.md)。
+
+实现：`core/root_revoke.py`、`views/root_ca.py`。
 
 ---
 
@@ -805,7 +823,7 @@ load_key_with_password(path) -> Key
 | M5 | 包管理 + 索引重建/签名 + Git 发布向导 | 完成 |
 | M6 | 校验门禁、错误处理、测试与文档 | 完成 |
 
-测试：`python3 -m pytest -q`（30 项）与 `python3 tests/pty_smoke.py`（16 个 pty 场景）。
+测试：`python3 -m pytest -q`（33 项）与 `python3 tests/pty_smoke.py`（17 个 pty 场景）。
 
 ---
 

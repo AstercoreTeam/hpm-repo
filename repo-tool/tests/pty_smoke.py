@@ -400,6 +400,14 @@ def scenario_publish() -> None:
             info.size = len(data)
             tar.addfile(info, io.BytesIO(data))
 
+        tar2_path = publish / "demo2-ch552-2.0.0.tar.gz"
+        manifest2 = dict(manifest, name="demo2", version="2.0.0")
+        with tarfile.open(tar2_path, "w:gz") as tar:
+            data = json.dumps(manifest2).encode()
+            info = tarfile.TarInfo("alice/manifest.json")
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+
         # 让默认开发者名为 alice
         (home / "dev.json").write_text(
             json.dumps(
@@ -426,19 +434,29 @@ def scenario_publish() -> None:
         session.send("\x1b[B")
         time.sleep(0.2)
         session.send("\r")
-        session.wait_for("请输入 tar.gz 路径")
+        session.wait_for("发布全部包")
+        session.send("\x1b[C")
+        time.sleep(0.2)
         session.send("\r")
         session.wait_for("开发者名")
         session.send("\r")
+        session.wait_for("缺少有效签名")
+        session.send("\x1b[C")
+        time.sleep(0.2)
+        session.send("\r")
 
-        deadline = time.monotonic() + 8
-        while time.monotonic() < deadline and not (root / "alice" / tar_path.name).is_file():
-            time.sleep(0.1)
-        assert (root / "alice" / tar_path.name).is_file(), "包未入库"
-        assert (root / "alice" / (tar_path.name + ".sig")).is_file(), "包未签名"
+        session.wait_for("发布完成")
+        for path in (tar_path, tar2_path):
+            assert (root / "alice" / path.name).is_file(), f"包未入库: {path.name}"
+            assert (root / "alice" / (path.name + ".sig")).is_file(), "包未签名"
+            assert not path.exists(), f"发布后 publish 源文件未删除: {path.name}"
+        session.send("\r")
+        time.sleep(0.2)
         ok, detail = index_mod.verify_index(root)
         assert ok, detail
-        assert "demo-ch552" in index_mod.load_index(root)["packages"]
+        packages_data = index_mod.load_index(root)["packages"]
+        assert "demo-ch552" in packages_data
+        assert "demo2-ch552" in packages_data
 
         session.send("\x1b")
         time.sleep(0.2)
@@ -528,6 +546,13 @@ def _make_official_repo(base: Path, root: Path, home: Path):
     )
     root_pem = root_cert.public_bytes(serialization.Encoding.PEM)
     (base / "root.crt").write_bytes(root_pem)
+    (base / "root.key").write_bytes(
+        root_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
 
     official_key = ed25519.Ed25519PrivateKey.generate()
     csr = crypto.load_csr_bytes(
@@ -976,11 +1001,18 @@ def scenario_publish_only_then_index() -> None:
         session.send("\x1b[B")
         time.sleep(0.2)
         session.send("\r")
-        session.wait_for("请输入 tar.gz 路径")
+        session.wait_for("发布全部包")
+        session.send("\x1b[C")
+        time.sleep(0.2)
         session.send("\r")
         session.wait_for("开发者名")
         session.send("\r")
-        session.wait_for("包已入库")
+        session.wait_for("缺少有效签名")
+        session.send("\x1b[C")
+        time.sleep(0.2)
+        session.send("\r")
+        session.wait_for("发布完成")
+        assert not tar_path.exists(), "发布后 publish 源文件未删除"
         assert "demo-ch552" not in index_mod.load_index(root)["packages"]
         session.send("\r")
         time.sleep(0.3)
@@ -1011,6 +1043,56 @@ def scenario_publish_only_then_index() -> None:
         os.close(session.master)
 
 
+def scenario_root_management() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        root = base / "repo"
+        root.mkdir()
+        home = base / "home"
+        home.mkdir()
+        _make_official_repo(base, root, home)
+        env = make_env(root, home, HPM_ROOT_CA=str(base / "root.crt"))
+        session = Session(env, "--no-animation")
+        session.wait_for("信任根管理")
+        for _ in range(3):
+            session.send("\x1b[B")
+            time.sleep(0.15)
+        session.send("\r")
+        session.wait_for("更新 ROOT 吊销列表日期")
+        session.send("\x1b[B")
+        session.send("\x1b[B")
+        time.sleep(0.2)
+        session.send("\r")
+        session.wait_for("请输入 HPM 根私钥路径")
+        session.send(str(base / "root.key") + "\r")
+        session.wait_for("签名有效")
+        assert (root / "ROOT_revoke.json.sig").is_file(), "根吊销列表未签名"
+
+        session.send("\x1b[A")
+        time.sleep(0.2)
+        session.send("\r")
+        session.wait_for("吊销官方证书")
+        session.send("\x1b[C")
+        time.sleep(0.2)
+        session.send("\r")
+        session.wait_for("吊销原因")
+        session.send("\r")
+        session.wait_for("请输入 HPM 根私钥路径")
+        session.send(str(base / "root.key") + "\r")
+        session.wait_for("官方证书已吊销")
+        from hpmrepo.core import root_revoke
+
+        assert root_revoke.load(root)["entries"], "官方证书未写入根吊销列表"
+        session.send("\x1b")
+        time.sleep(0.2)
+        session.send("\x1b")
+        time.sleep(0.2)
+        session.send("q")
+        session.proc.wait(timeout=3)
+        session.drain(0.2)
+        os.close(session.master)
+
+
 def main() -> int:
     scenarios = [
         ("home/gating", scenario_home),
@@ -1028,6 +1110,7 @@ def main() -> int:
         ("delete domain", scenario_delete_domain),
         ("refresh revoke date", scenario_refresh_revoke_date),
         ("publish only then index", scenario_publish_only_then_index),
+        ("root management", scenario_root_management),
         ("splash", scenario_splash),
     ]
     failed = 0

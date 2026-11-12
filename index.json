@@ -21,7 +21,7 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/ch552g-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/ch552g-1.0.0.tar.gz.sig",
-          "sha256": "748f313e6a2642c532c6b847611e1dbef9dace77aade4712e1c39946381f42b0",
+          "sha256": "d7faee11709d645fe3d454d3e0c08d88a27a2a6bd14c524a80425b08603120a1",
           "size": 24115,
           "license": "MIT",
           "description": "",
@@ -97,6 +97,56 @@
         }
       }
     },
+    "gpio-*": {
+      "versions": {
+        "1.0.0": {
+          "kind": "driver",
+          "chip": "*",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/gpio-*-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/gpio-*-1.0.0.tar.gz.sig",
+          "sha256": "d91437058d758bf7a8209c75110229b1fede5391ee9eb4c7293c82cee8e7f0ab",
+          "size": 21643,
+          "license": "MIT",
+          "description": "Single GPIO driver",
+          "config": {},
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "on",
+                "return": "void",
+                "params": []
+              },
+              {
+                "name": "off",
+                "return": "void",
+                "params": []
+              },
+              {
+                "name": "toggle",
+                "return": "void",
+                "params": []
+              }
+            ]
+          },
+          "requires": {
+            "pin": {
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write",
+                "read"
+              ]
+            }
+          }
+        }
+      }
+    },
     "pwm-stc90c51": {
       "versions": {
         "1.0.0": {
@@ -105,8 +155,8 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/pwm-stc90c51-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/pwm-stc90c51-1.0.0.tar.gz.sig",
-          "sha256": "ecaaee3d097aace84ff1f9d560e3043e947d2a6d433a2c5a3490f7315e465baa",
-          "size": 1213,
+          "sha256": "0eaf80cf6394e25396561f230d1517b7be85c5db19f5fd3a88adec0f243d3d66",
+          "size": 11644,
           "license": "MIT",
           "description": "Independent hardware timer PWM driver",
           "config": {
@@ -172,8 +222,8 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/stc90c51-0.1.0.tar.gz",
           "sig_url": "{baseurl}/xzc/stc90c51-0.1.0.tar.gz.sig",
-          "sha256": "f1a23e821828afdebff4cdc0b39141eb9a9aa0d0ef6aca1468299c75cbc42ee5",
-          "size": 12190,
+          "sha256": "6cb8c87bb10ca274577d2acf9072c1141e43b502f885430b0825452ce0967437",
+          "size": 21010,
           "license": "MIT",
           "description": "",
           "config": {},
@@ -188,22 +238,140 @@
           },
           "requires": {},
           "pins": {
-            "P1_0": {
+            "P0_0": {
               "capabilities": [
+                {
+                  "type": "adc"
+                },
+                {
+                  "type": "gpio_in"
+                },
                 {
                   "type": "gpio_out"
                 }
               ]
+            },
+            "P0_1": {
+              "capabilities": [
+                {
+                  "type": "adc"
+                },
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P0_2": {
+              "capabilities": [
+                {
+                  "type": "adc"
+                },
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P0_3": {
+              "capabilities": [
+                {
+                  "type": "adc"
+                },
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P0_4": {
+              "capabilities": [
+                {
+                  "type": "adc"
+                },
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P0_5": {
+              "capabilities": [
+                {
+                  "type": "adc"
+                },
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P0_6": {
+              "capabilities": [
+                {
+                  "type": "adc"
+                },
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P0_7": {
+              "capabilities": [
+                {
+                  "type": "adc"
+                },
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P1_0": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                },
+                {
+                  "type": "pwm"
+                }
+              ],
+              "shareable": true
             },
             "P1_1": {
               "capabilities": [
                 {
+                  "type": "gpio_in"
+                },
+                {
                   "type": "gpio_out"
                 }
-              ]
+              ],
+              "shareable": true
             },
             "P1_2": {
               "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
                 {
                   "type": "gpio_out"
                 }
@@ -212,12 +380,18 @@
             "P1_3": {
               "capabilities": [
                 {
+                  "type": "gpio_in"
+                },
+                {
                   "type": "gpio_out"
                 }
               ]
             },
             "P1_4": {
               "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
                 {
                   "type": "gpio_out"
                 }
@@ -226,12 +400,18 @@
             "P1_5": {
               "capabilities": [
                 {
+                  "type": "gpio_in"
+                },
+                {
                   "type": "gpio_out"
                 }
               ]
             },
             "P1_6": {
               "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
                 {
                   "type": "gpio_out"
                 }
@@ -240,12 +420,101 @@
             "P1_7": {
               "capabilities": [
                 {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P2_0": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P2_1": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P2_2": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P2_3": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P2_4": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P2_5": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P2_6": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P2_7": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
                   "type": "gpio_out"
                 }
               ]
             },
             "P3_0": {
               "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                },
                 {
                   "type": "uart_rx"
                 }
@@ -254,12 +523,21 @@
             "P3_1": {
               "capabilities": [
                 {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                },
+                {
                   "type": "uart_tx"
                 }
               ]
             },
             "P3_2": {
               "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
                 {
                   "type": "gpio_out"
                 }
@@ -268,12 +546,18 @@
             "P3_3": {
               "capabilities": [
                 {
+                  "type": "gpio_in"
+                },
+                {
                   "type": "gpio_out"
                 }
               ]
             },
             "P3_4": {
               "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
                 {
                   "type": "gpio_out"
                 }
@@ -282,12 +566,18 @@
             "P3_5": {
               "capabilities": [
                 {
+                  "type": "gpio_in"
+                },
+                {
                   "type": "gpio_out"
                 }
               ]
             },
             "P3_6": {
               "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
                 {
                   "type": "gpio_out"
                 }
@@ -296,8 +586,135 @@
             "P3_7": {
               "capabilities": [
                 {
+                  "type": "gpio_in"
+                },
+                {
                   "type": "gpio_out"
                 }
+              ]
+            },
+            "P4_0": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P4_1": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P4_2": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "P4_3": {
+              "capabilities": [
+                {
+                  "type": "gpio_in"
+                },
+                {
+                  "type": "gpio_out"
+                }
+              ]
+            },
+            "RST": {
+              "capabilities": []
+            },
+            "ALE": {
+              "capabilities": []
+            },
+            "PSEN": {
+              "capabilities": []
+            },
+            "EA": {
+              "capabilities": []
+            },
+            "XTAL1": {
+              "capabilities": []
+            },
+            "XTAL2": {
+              "capabilities": []
+            }
+          }
+        }
+      }
+    },
+    "stepper-*": {
+      "versions": {
+        "1.0.0": {
+          "kind": "driver",
+          "chip": "*",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/stepper-*-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/stepper-*-1.0.0.tar.gz.sig",
+          "sha256": "715e15cfd255328f8c9b5b9b30a26245ab0fe18a9c8bf7e729d66b82599d9265",
+          "size": 23036,
+          "license": "MIT",
+          "description": "Generic step/direction stepper motor driver",
+          "config": {
+            "step_angle": {
+              "type": "int",
+              "default": "2"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "set_dir",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "int",
+                    "name": "dir"
+                  }
+                ]
+              },
+              {
+                "name": "pulse",
+                "return": "void",
+                "params": [
+                  {
+                    "type": "unsigned int",
+                    "name": "steps"
+                  }
+                ]
+              }
+            ]
+          },
+          "requires": {
+            "step": {
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
+            },
+            "dir": {
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
               ]
             }
           }
@@ -312,8 +729,8 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/stm32f103c8t6-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/stm32f103c8t6-1.0.0.tar.gz.sig",
-          "sha256": "720ff2005028ad6a50aa2c106fd7d4ae8189a8a7e1b8e7bc193b170876988cfe",
-          "size": 92911,
+          "sha256": "16bc77de81985dd249446e0735fe6814d4405a9c20c3a3d1b799cad0c6212434",
+          "size": 93550,
           "license": "MIT",
           "description": "",
           "config": {},
@@ -394,8 +811,8 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/time-stc90c51-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/time-stc90c51-1.0.0.tar.gz.sig",
-          "sha256": "96f2a1900b33cf7178cc575741df6ca8298f84e05bbd5e9cfe39a6826da2073a",
-          "size": 1305,
+          "sha256": "73e2a6a03d516afbcd6a7f28ba088dcf7d668d1c573df303b0e7ba083238e4c0",
+          "size": 2506,
           "license": "MIT",
           "description": "Timer based precise delay driver",
           "config": {
@@ -445,6 +862,82 @@
         }
       }
     },
+    "ultrasonic-*": {
+      "versions": {
+        "1.0.0": {
+          "kind": "driver",
+          "chip": "*",
+          "developer": "xzc",
+          "url": "{baseurl}/xzc/ultrasonic-*-1.0.0.tar.gz",
+          "sig_url": "{baseurl}/xzc/ultrasonic-*-1.0.0.tar.gz.sig",
+          "sha256": "f1e840bef73c6ffec44070fa88c84f0416ebfafa73ad402b0e9ee67a62d83cf4",
+          "size": 19190,
+          "license": "MIT",
+          "description": "Generic GPIO ultrasonic distance sensor",
+          "config": {
+            "effective_distance": {
+              "type": "int",
+              "default": "30",
+              "title": "有效距离",
+              "unit": "cm"
+            },
+            "max_distance": {
+              "type": "int",
+              "default": "400",
+              "title": "最大距离",
+              "unit": "cm"
+            },
+            "step_cm": {
+              "type": "int",
+              "default": "4",
+              "title": "每次触发接近距离",
+              "unit": "cm"
+            },
+            "loops_per_cm": {
+              "type": "int",
+              "default": "60",
+              "title": "每厘米循环数"
+            }
+          },
+          "provides": {
+            "methods": [
+              {
+                "name": "init",
+                "return": "int",
+                "params": []
+              },
+              {
+                "name": "trigger",
+                "return": "void",
+                "params": []
+              },
+              {
+                "name": "read_cm",
+                "return": "int",
+                "params": []
+              }
+            ]
+          },
+          "requires": {
+            "trig": {
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write"
+              ]
+            },
+            "echo": {
+              "type": "gpio_out",
+              "methods": [
+                "init",
+                "write",
+                "read"
+              ]
+            }
+          }
+        }
+      }
+    },
     "usb_cdc-ch552g": {
       "versions": {
         "1.0.0": {
@@ -453,7 +946,7 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/usb_cdc-ch552g-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/usb_cdc-ch552g-1.0.0.tar.gz.sig",
-          "sha256": "7bcfe0513374e0351e5218d3eb64b53f2240a17fffd5777fedecabf841c5a6dd",
+          "sha256": "8411cd28725c4d2821259cdb1c320fb7103779d1e2d95b8d3bc6483dbfec5c5f",
           "size": 24836,
           "license": "MIT",
           "description": "CH552 USB CDC serial",
@@ -536,8 +1029,8 @@
           "developer": "xzc",
           "url": "{baseurl}/xzc/usb_cdc-stm32f103c8t6-1.0.0.tar.gz",
           "sig_url": "{baseurl}/xzc/usb_cdc-stm32f103c8t6-1.0.0.tar.gz.sig",
-          "sha256": "cf813129117737d980861bc160380c655b671d4e045580ac4506f6e21fd94eb3",
-          "size": 31177,
+          "sha256": "3070c8588890ccb5257c59b65ac16335db28be42d0b1bf0b85584eee88deb726",
+          "size": 31173,
           "license": "MIT",
           "description": "USB CDC ACM virtual COM port for STM32F103C8T6",
           "config": {

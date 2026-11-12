@@ -127,7 +127,9 @@ class HomeView(View):
         identity = self.app.identity
         items: list[MenuItem] = []
 
-        def repo_management(include_domains: bool, include_login: bool) -> None:
+        def repo_management(
+            include_domains: bool, include_login: bool, include_root: bool = False
+        ) -> None:
             if role in (Role.PRIVATE, Role.PRIVATE_UNVERIFIED) and self._pending_init():
                 items.append(
                     MenuItem("完成初始化", "导入 official.crt 后签名", action="finish_init")
@@ -140,6 +142,10 @@ class HomeView(View):
             items.append(MenuItem("管理开发者", "证书签发与吊销", action="developers"))
             if include_domains:
                 items.append(MenuItem("私域管理", "域列表 / 签发 / 吊销", action="domains"))
+            if include_root:
+                items.append(
+                    MenuItem("信任根管理", "根私钥签发/吊销官方证书", action="root_ca")
+                )
             items.append(MenuItem("生成签名请求", "私域 / 开发者", action="generate_request"))
             items.append(
                 MenuItem("更新吊销列表", "仅刷新 updatedAt 并重签", action="update_revoke")
@@ -149,7 +155,7 @@ class HomeView(View):
 
         if identity is Identity.OFFICIAL_ADMIN:
             if role is Role.OFFICIAL:
-                repo_management(include_domains=True, include_login=False)
+                repo_management(include_domains=True, include_login=False, include_root=True)
             elif role in (Role.PRIVATE, Role.PRIVATE_UNVERIFIED):
                 repo_management(include_domains=False, include_login=False)
             elif role is Role.UNINITIALIZED:
@@ -302,6 +308,10 @@ class HomeView(View):
             from .domains import DomainManagementView
 
             self.app.push(DomainManagementView(self.app))
+        elif action == "root_ca":
+            from .root_ca import RootManagementView
+
+            self.app.push(RootManagementView(self.app))
         elif action == "update_revoke":
             from .common import update_revoke_list
 

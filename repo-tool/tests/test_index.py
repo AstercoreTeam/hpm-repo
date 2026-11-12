@@ -240,3 +240,17 @@ def test_unindexed_package_appears_then_can_be_indexed(domain_repo, developer_fa
     rows = packages.list_all(domain_repo)
     target = [r for r in rows if r.package == "demo-ch552" and r.version == "1.0.0"]
     assert target and target[0].indexed
+
+
+def test_publish_candidates_supports_root_and_tool_dirs(repo, tmp_path, monkeypatch):
+    from hpmrepo.core import packages
+    import hpmrepo.repo as repo_mod
+
+    tool = repo / "repo-tool"
+    monkeypatch.setattr(repo_mod, "tool_dir", lambda: tool)
+    (repo / "publish").mkdir()
+    (repo / "publish" / "a-ch552-1.0.0.tar.gz").write_bytes(b"a")
+    (tool / "publish").mkdir(parents=True)
+    (tool / "publish" / "b-ch552-2.0.0.tar.gz").write_bytes(b"b")
+    names = {p.name for p in packages.publish_candidates(repo)}
+    assert names == {"a-ch552-1.0.0.tar.gz", "b-ch552-2.0.0.tar.gz"}

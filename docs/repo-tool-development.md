@@ -7,6 +7,7 @@
 - [仓库 README](../README.md)
 - [hrm 使用说明](repo-tool.md)
 - [hrm 设计与实现](repo-tool-design.md)
+- [证书颁发与吊销机制](certificates.md)
 - [仓库维护文档](repo.md)
 
 ---
@@ -403,6 +404,7 @@ app.foo = args.foo
 
 - `packages.list_all(root)` = 已索引包 + `unindexed_packages(root)`；后者扫描 `<developer>/*.tar.gz`，按文件名/清单推导包名与版本，用开发者证书验签。
 - 普通开发者发布：`publish_wizard(app, update_index=False)`，只签名并复制，不碰索引。
+  文件选择优先 `packages.publish_candidates(root)`（扫描仓库内 `publish/` 与 `repo-tool/publish/`，按 mtime 倒序）；有文件时确认后批量发布并删除源文件，都为空才弹路径输入。
 - 管理员加入索引：`PackageDetailView._add_to_index()` → `rebuild_and_sign()` → 校验该版本确实进入 `index.json`。
 - 列表返回父视图时通过 `on_resume()` 重新加载（`App.pop()` 会调用父视图的该方法）。
 

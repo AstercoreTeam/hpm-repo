@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "updatedAt": "2026-11-12T14:33:25Z",
+  "issuer": {
+    "subject": "O=HPM,CN=HPM Root CA",
+    "certSha256": "20:4A:E5:10:20:1C:FC:80:29:36:00:72:F0:2C:CE:EE:92:CC:03:16:0C:76:B1:23:EB:66:93:22:F2:9D:67:AB"
+  },
+  "entries": []
+}

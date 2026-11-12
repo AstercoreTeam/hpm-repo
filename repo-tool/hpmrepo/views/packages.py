@@ -385,37 +385,72 @@ class VerifyView(View):
 
 
 def publish_wizard(app, *, update_index: bool = True) -> None:
+    from ..repo import tool_dir
+    from ..util.fs import human_size
+
     ctx = app.ctx
     if ctx.role is Role.UNINITIALIZED:
         app.error("仓库未初始化", "请先完成私域仓库初始化。")
         return
 
-    default_tar = packages.default_tarball(ctx.root)
-    text = app.input(
-        "发布包",
-        "请输入 tar.gz 路径",
-        default=str(default_tar) if default_tar else "publish/",
-        hint="通常由 hpm-dev publish 产出 · Esc 取消",
-    )
-    if text is None:
-        return
-    tar = Path(text).expanduser()
-    if tar.is_dir():
-        candidates = sorted(tar.glob("*.tar.gz"))
-        if not candidates:
-            app.error(f"目录中没有 tar.gz: {tar}")
-            return
-        index = app.choose("选择包", [p.name for p in candidates])
-        if index is None:
-            return
-        tar = candidates[index]
-    if not tar.is_file():
-        app.error(f"文件不存在: {tar}")
-        return
+    publish_dirs = {ctx.root / "publish"}
+    tool = tool_dir()
+    try:
+        tool.relative_to(ctx.root)
+        publish_dirs.add(tool / "publish")
+    except ValueError:
+        pass
+    candidates = packages.publish_candidates(ctx.root)
+    tars: list[Path] = []
+    from_publish = bool(candidates)
 
-    driver, chip, version = packages.parse_filename(tar.name)
-    if not driver or not version:
-        app.error("文件名不符合包命名规则", "应为 <driver>-<chip>-<version>.tar.gz 或 <chip>-<version>.tar.gz")
+    if candidates:
+        lines = [
+            "检测到以下包，确认后将全部发布：",
+            "",
+            *[
+                f"  {str(p.relative_to(ctx.root)) if p.is_relative_to(ctx.root) else p}"
+                f"  ({human_size(p.stat().st_size)})"
+                for p in candidates
+            ],
+        ]
+        if not app.confirm("发布全部包", lines):
+            return
+        tars = candidates
+    else:
+        text = app.input(
+            "发布包",
+            "publish/ 为空，请输入 tar.gz 路径或包含 tar.gz 的目录",
+            default="",
+            hint="通常由 hpm-dev publish 产出 · Esc 取消",
+        )
+        if text is None or not text.strip():
+            return
+        path = Path(text).expanduser()
+        if path.is_dir():
+            tars = sorted(path.glob("*.tar.gz"))
+            if not tars:
+                app.error(f"目录中没有 tar.gz: {path}")
+                return
+            if len(tars) > 1:
+                if not app.confirm(
+                    "发布全部包",
+                    ["将发布目录中的全部包：", *[f"  {p.name}" for p in tars]],
+                ):
+                    return
+        elif path.is_file():
+            tars = [path]
+        else:
+            app.error(f"路径不存在: {path}")
+            return
+
+    invalid = [p.name for p in tars if not packages.parse_filename(p.name)[0] or not packages.parse_filename(p.name)[2]]
+    if invalid:
+        app.error(
+            "文件名不符合包命名规则",
+            "应为 <driver>-<chip>-<version>.tar.gz 或 <chip>-<version>.tar.gz："
+            + ", ".join(invalid[:5]),
+        )
         return
 
     developer = (app.dev.developer if app.dev else "") or ""
@@ -440,92 +475,133 @@ def publish_wizard(app, *, update_index: bool = True) -> None:
             f"请先把 {developer}.crt 放到 {developer}/ 目录，或在「管理开发者」中签发。",
         )
         return
-
+    cert = crypto.load_cert(cert_path)
     dest_dir = ctx.root / developer
-    dest_tar = dest_dir / tar.name
-    if dest_tar.exists() and dest_tar.resolve() != tar.resolve():
-        if not app.confirm("覆盖包", f"{dest_tar} 已存在，覆盖吗？", danger=True):
+
+    conflicts = [
+        p for p in tars
+        if (dest_dir / p.name).exists() and (dest_dir / p.name).resolve() != p.resolve()
+    ]
+    if conflicts:
+        if not app.confirm(
+            "覆盖包",
+            [f"{len(conflicts)} 个包在仓库中已存在，全部覆盖吗？"]
+            + [f"  {p.name}" for p in conflicts[:10]],
+            danger=True,
+        ):
             return
 
-    sig_path = tar.with_name(tar.name + ".sig")
-    cert = crypto.load_cert(cert_path)
-    need_signing = True
-    if sig_path.is_file():
-        valid = crypto.verify_signature_with_cert(cert, tar.read_bytes(), sig_path.read_bytes())
-        if valid:
-            need_signing = False
-            app.toast("已有有效签名，跳过签名", "ok", 2)
-        else:
-            if not app.confirm("重新签名", "现有 .sig 无效，是否重新签名？"):
-                return
-
+    # 先完成所有签名，避免复制到一半才发现密钥问题
+    need_signing: list[Path] = []
+    for tar in tars:
+        sig = tar.with_name(tar.name + ".sig")
+        if sig.is_file() and crypto.verify_signature_with_cert(
+            cert, tar.read_bytes(), sig.read_bytes()
+        ):
+            continue
+        need_signing.append(tar)
     if need_signing:
+        if not app.confirm(
+            "签名",
+            [f"{len(need_signing)} 个包缺少有效签名，使用开发者私钥签名/重签？"]
+            + [f"  {p.name}" for p in need_signing[:10]],
+        ):
+            return
         key = developer_key_ui(app, ctx, developer)
         if key is None:
             return
-        app.busy("签名", f"正在签名 {tar.name} …")
-        packages.sign_file(key, tar, sig_path)
-        if not crypto.verify_signature_with_cert(cert, tar.read_bytes(), sig_path.read_bytes()):
-            app.error("签名自检失败", "私钥与开发者证书不匹配。")
+        for tar in need_signing:
+            sig = tar.with_name(tar.name + ".sig")
+            app.busy("签名", f"正在签名 {tar.name} …")
+            packages.sign_file(key, tar, sig)
+            if not crypto.verify_signature_with_cert(
+                cert, tar.read_bytes(), sig.read_bytes()
+            ):
+                app.error("签名自检失败", f"私钥与 {developer} 证书不匹配。")
+                return
+
+    # 全部复制入库
+    installed: list[Path] = []
+    for tar in tars:
+        sig = tar.with_name(tar.name + ".sig")
+        try:
+            packages.install_package(ctx.root, tar, sig, developer)
+        except Exception as exc:  # noqa: BLE001
+            app.error("复制包到仓库失败", f"{tar.name}: {exc}")
+            return
+        installed.append(tar)
+        log.log_action("package_install", f"{tar.name} by {developer}")
+
+    sync_notes: list[str] = []
+    if update_index:
+        official = official_key_ui(app, ctx)
+        if official is None:
+            app.toast("包已入库，但索引未更新", "warn", 5)
+            return
+        data = rebuild_and_sign(app, ctx, official)
+        missing = []
+        sync_notes = []
+        for tar in installed:
+            matched = None
+            for pkg_name, pkg in (data.get("packages") or {}).items():
+                for ver, entry in (pkg.get("versions") or {}).items():
+                    if str(entry.get("url", "")).endswith(tar.name):
+                        matched = (pkg_name, ver)
+                        break
+                if matched:
+                    break
+            if not matched:
+                missing.append(tar.name)
+            else:
+                note = sync_package_result(app, matched[0], matched[1])
+                if note:
+                    sync_notes.append(note)
+        if missing:
+            app.error(
+                "部分包没有进入索引",
+                "请检查 tar.gz 内是否有 manifest.json / chip.json："
+                + ", ".join(missing),
+            )
+            return
+        ok, detail = index_mod.verify_index(ctx.root)
+        if not ok:
+            app.error("发布后索引校验失败", detail)
             return
 
-    packages.install_package(ctx.root, tar, sig_path, developer)
-    if not update_index:
-        log.log_action("package_install", f"{tar.name} by {developer}")
-        app.toast(f"已签名入库 {tar.name}，等待管理员加入索引", "ok", 5)
-        app.info(
-            "包已入库",
-            [
-                f"开发者: {developer}",
-                f"包: {dest_dir / tar.name}",
-                f"签名: {dest_dir / (tar.name + '.sig')}",
-                "",
-                "本操作没有更新索引。",
-                "仓库管理员会在包列表中看到「未加入索引」，进入详情按 a 加入索引。",
-            ],
-        )
-        return
-    official = official_key_ui(app, ctx)
-    if official is None:
-        app.toast("包已入库，但索引未更新", "warn")
-        return
-    data = rebuild_and_sign(app, ctx, official)
-    present = any(
-        str(entry.get("url", "")).endswith(tar.name)
-        for pkg in (data.get("packages") or {}).values()
-        for entry in (pkg.get("versions") or {}).values()
-    )
-    if not present:
-        app.error(
-            "包没有进入索引",
-            "请检查 tar.gz 内是否有 manifest.json / chip.json，以及文件名是否符合 <driver>-<chip>-<version>。",
-        )
-        return
-    ok, detail = index_mod.verify_index(ctx.root)
-    if not ok:
-        app.error("发布后索引校验失败", detail)
-        return
+    # 发布成功后，从 publish/ 删除源文件
+    removed = 0
+    for tar in installed:
+        try:
+            parent = tar.parent.resolve()
+        except OSError:
+            continue
+        if parent not in {d.resolve() for d in publish_dirs}:
+            continue
+        sig = tar.with_name(tar.name + ".sig")
+        for path in (tar, sig):
+            if path.is_file():
+                try:
+                    path.unlink()
+                    removed += 1
+                except OSError:
+                    pass
 
-    matched_package = None
-    for pkg_name, pkg in (data.get("packages") or {}).items():
-        for ver, entry in (pkg.get("versions") or {}).items():
-            if str(entry.get("url", "")).endswith(tar.name):
-                matched_package = (pkg_name, ver)
-                break
-        if matched_package:
-            break
-    sync_note = ""
-    if matched_package:
-        sync_note = sync_package_result(app, matched_package[0], matched_package[1])
+    names = [p.name for p in installed]
+    lines = [f"已发布 {len(names)} 个包：", "", *[f"  {n}" for n in names]]
+    if removed:
+        lines += ["", f"已从 publish/ 删除 {removed} 个文件"]
+    if update_index:
+        lines += ["", "索引已重建并签名。"]
+    else:
+        lines += ["", "本操作没有更新索引，管理员可在包详情按 a 加入。"]
+    bad_sync = [n for n in sync_notes if "失败" in n]
+    if bad_sync:
+        lines += ["", *bad_sync]
+    app.info("发布完成", lines)
 
-    log.log_action("package_publish", f"{tar.name} by {developer}")
-    app.toast(
-        f"已发布 {tar.name}" + (f" · {sync_note}" if sync_note else ""),
-        "ok",
-        5,
-    )
-    commit_ui(app, ctx, f"Publish {tar.name}")
-
+    log.log_action("package_publish_batch", f"{len(names)} by {developer}")
+    if update_index:
+        commit_ui(app, ctx, f"Publish {len(names)} package(s)")
 
 def git_sync(app) -> None:
     from ..core import gitops

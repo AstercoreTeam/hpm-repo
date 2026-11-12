@@ -28,13 +28,16 @@ hpm-repo/
 ├── README.md                   仓库说明（根目录唯一文档）
 ├── docs/                       全部文档
 │   ├── repo.md                 本文件
+│   ├── certificates.md          证书颁发与吊销机制
 │   ├── repo-tool.md             hrm 使用说明
 │   ├── repo-tool-design.md      hrm 设计与实现
 │   └── repo-tool-development.md hrm 开发与扩展指南
 ├── index.json                  索引（schema 2）
 ├── index.json.sig              官方证书私钥签名
-├── revoke.json                 证书吊销列表（官方私钥签，可选）
-├── revoke.json.sig             吊销列表签名
+├── revoke.json                 仓库级吊销列表（仓库 official 私钥签，可选）
+├── revoke.json.sig             仓库级吊销列表签名
+├── ROOT_revoke.json            根级吊销列表（根私钥签，可选，不归 hrm 管理）
+├── ROOT_revoke.json.sig        根级吊销列表签名
 ├── official.crt                官方仓库证书（Root CA 签发）
 ├── xzc/
 │   ├── xzc.crt                 开发者证书（官方/域证书签发）
@@ -52,18 +55,10 @@ hpm-repo/
 
 ```
 HPM Root CA（内置在 hpm 客户端）
-    ↓ 签发
-official.crt（官方仓库证书）
-    ↓ 验证
-index.json.sig → index.json
-    ↓ 主索引 domains.<name>.cert
-<domain>/official.crt（域仓库证书）
-    ↓ 验证
-域 index.json.sig
-    ↓ 域索引 developers.<name>.cert
-developer.crt（开发者证书）
-    ↓ 验证
-<package>.tar.gz.sig → <package>.tar.gz
+    ├─ 签发 → official.crt（官方仓库证书）
+    │            ├─ 验签 → index.json.sig / revoke.json.sig
+    │            └─ 签发 → 域 official.crt → 域索引 → developer.crt
+    └─ 签发 → ROOT_revoke.json（用于吊销官方证书）
 ```
 
 ## 四、索引格式
@@ -189,20 +184,27 @@ git push origin main
 
 ## 七、证书维护
 
-证书生成、签发和 profile 见 HPM 主仓库的
-`docs/pki.md`。
+完整的证书层次、签发流程、证书 profile、仓库级 `revoke.json` 和根级
+`ROOT_revoke.json` 见 [证书颁发与吊销机制](certificates.md)。
 
 - 根私钥离线保存；
-- 官方私钥只用于签主索引和域证书；
-- 域私钥用于签域索引和开发者证书；
+- 官方私钥只用于签主索引、域证书和仓库级吊销列表；
+- 域私钥用于签域索引、开发者证书和域级吊销列表；
 - 开发者私钥只签自己的包；
 - 证书过期前重新签发并更新索引 URL。
+
+吊销分两级：
+
+- 仓库级 `revoke.json`：由 hrm 生成和签名，吊销域/开发者证书；
+- 根级 `ROOT_revoke.json`：由官方管理员在 hrm「信任根管理」中用根私钥签名，吊销官方证书；根私钥每次重输，不缓存。
 
 ## 八、镜像
 
 镜像需要同步：
 
 - `index.json` + `index.json.sig`
+- `revoke.json` + `revoke.json.sig`（存在时）
+- `ROOT_revoke.json` + `ROOT_revoke.json.sig`（根维护者生成，原样同步）
 - `official.crt`
 - 所有开发者目录
 - 域仓库根目录的 `official.crt`（由域仓库自己维护）
