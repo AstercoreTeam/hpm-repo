@@ -200,8 +200,8 @@ HPM Root CA（内置在 hpm 客户端）
 ## 相关链接
 
 - [HPM 主仓库](https://github.com/xzc842/hpm)
-- [驱动包格式规范](https://github.com/xzc842/hpm/blob/main/docs/device_driver.md)
-- [PKI 维护文档](https://github.com/xzc842/hpm/blob/main/docs/pki.md)
+- [驱动包格式规范](https://github.com/AstercoreTea/hpm/blob/main/docs/device_driver.md)
+- [PKI 维护文档](https://github.com/AstercoreTea/hpm/blob/main/docs/pki.md)
 
 ## 证书指纹
 
