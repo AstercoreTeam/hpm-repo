@@ -842,21 +842,3 @@ load_key_with_password(path) -> Key
 
 ---
 
-## 14. 已确认决策与后续工作
-
-已确认：
-
-1. **登录**：`hpm-dev login` 优先，`hpm login` 作为兼容回退；`HPM_DEV_BIN` 可覆盖。
-2. **官方管理员**：完全免登录，不读取 `dev.json.repoUrl`，远程地址来自 `git remote -v`。
-3. **私域仓库**：就是 `repo-tool/` 所在目录；仓库根 = `repo-tool` 的上一级。
-4. **仓库根目录**：固定，不做目录选择；`HPM_REPO_ROOT` 仅用于测试。
-5. **请求格式**：`*.request.json`（CSR + 公钥 + 自签名 + nonce），工具内已实现校验与签发。
-6. **包来源**：tar.gz 由 `hpm-dev publish` 或构建流水线产出，本工具负责签名、入库、索引。
-
-后续可做：
-
-- `hpm` 客户端实现 `revoke.json` 验签与吊销检查（§8.3）；当前客户端还没有相关逻辑。
-- 域证书签发后自动登记已实现；仍可增加“从域名反查仓库 URL”的默认值增强。
-- Windows 终端（ConPTY/msvcrt）适配；当前主要面向 Linux/macOS。
-- 纯 OpenSSL 后端（无 `cryptography` 环境）。
-- 包删除/发布的操作审计与更细的权限控制。
