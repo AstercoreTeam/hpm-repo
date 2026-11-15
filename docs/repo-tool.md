@@ -59,6 +59,15 @@ chmod +x repo-tool/hrm
 - 目标不存在返回 404 时按已删除处理；
 - 同步失败不影响本地操作，会显示原因；`HPM_DISABLE_CENTER_SYNC=1` 可关闭。
 
+### 界面语言
+
+设置 / 诊断 → 「Language: English / 语言：中文」切换。
+
+- 默认 English；
+- 设置保存在 `~/.hpm/hrm.json`，不写入仓库；
+- 词典：`repo-tool/i18n/en.json`、`repo-tool/i18n/zh.json`；
+- `HPM_LANG=en|zh` 可临时覆盖。
+
 ### 信任根管理
 
 仅 HPM 官方管理员在官方仓库可见：

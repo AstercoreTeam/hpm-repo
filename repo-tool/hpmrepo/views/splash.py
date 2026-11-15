@@ -6,6 +6,7 @@ from __future__ import annotations
 import time
 
 from .. import __app_long_name__, __version__
+from ..i18n import tr
 from ..tui.screen import Screen, st, text_width
 from .base import View
 
@@ -118,7 +119,7 @@ class SplashView(View):
                 st(fg="muted"),
             )
 
-        hint = "按任意键跳过" if self.app.animate else ""
+        hint = tr("按任意键跳过") if self.app.animate else ""
         if hint:
             screen.put(
                 max(0, (screen.w - text_width(hint)) // 2),

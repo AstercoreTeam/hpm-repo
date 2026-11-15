@@ -87,7 +87,8 @@ hpm-repo/
 │   ├── requirements.txt
 │   ├── hpmrepo/
 │   │   ├── app.py                # 主循环、导航栈、弹窗、子进程挂起
-│   │   ├── config.py             # dev.json 只读加载、Token 状态
+│   │   ├── config.py             # dev.json 只读加载、Token、本地设置
+│   │   ├── i18n.py               # 中英文翻译
 │   │   ├── repo.py               # 仓库根定位、角色判定
 │   │   ├── tui/
 │   │   │   ├── terminal.py       # 原始模式、备用屏、按键解码
@@ -99,6 +100,7 @@ hpm-repo/
 │   │   │   ├── packages.py  developers.py  domains.py
 │   │   │   ├── request.py
 │   │   │   ├── init_repo.py  settings.py  help.py  common.py
+│   │   │   ├── root_ca.py        # 信任根管理
 │   │   ├── core/
 │   │   │   ├── crypto.py         # 密钥/CSR/证书/签名
 │   │   │   ├── index.py          # 索引构建/签名/校验
@@ -108,9 +110,13 @@ hpm-repo/
 │   │   │   ├── domains.py        # domain.yaml / outgoing 域列表
 │   │   │   ├── identity.py       # 四类身份（按私钥文件）
 │   │   │   ├── center.py         # 开发者中心同步 API
+│   │   │   ├── root_revoke.py    # ROOT_revoke.json
 │   │   │   ├── keys.py  auth.py  gitops.py  verify.py
 │   │   └── util/
 │   │       ├── shell.py  fs.py  jsonc.py  log.py  errors.py
+│   ├── i18n/
+│   │   ├── en.json               # 英文词典（默认）
+│   │   └── zh.json               # 中文词典/覆盖
 │   └── tests/
 │       ├── conftest.py  test_crypto.py  test_index.py  test_init.py
 │       └── pty_smoke.py          # pty 端到端冒烟（非 pytest）
@@ -260,6 +266,15 @@ hpm-repo/
 每个界面都实现三个回调：`render()`、`handle_key()`、`refresh()`；异步动作通过 `task(name, fn)` 注册。
 
 ---
+
+### 4.4 国际化与用户设置
+
+- 默认语言 **English**；设置 / 诊断第一项切换 English / 中文；
+- 词典在 `repo-tool/i18n/en.json` 与 `zh.json`，中文源串作为 key，英文文件提供翻译；`tr()` 做精确匹配 + 短语替换；
+- 翻译在渲染边界执行：菜单、标题、表格、弹窗、页脚、toast、输入提示；
+- 用户选择保存在 `~/.hpm/hrm.json`（`HPM_HOME` 可覆盖），**不写入仓库**；
+- `HPM_LANG=en|zh` 可临时覆盖；
+- 设置文件权限 `0600`，只保存语言等非敏感偏好。
 
 ## 5. 数据模型与文件格式
 
@@ -838,7 +853,7 @@ load_key_with_password(path) -> Key
 | M5 | 包管理 + 索引重建/签名 + Git 发布向导 | 完成 |
 | M6 | 校验门禁、错误处理、测试与文档 | 完成 |
 
-测试：`python3 -m pytest -q`（33 项）与 `python3 tests/pty_smoke.py`（17 个 pty 场景）。
+测试：`python3 -m pytest -q`（35 项）与 `python3 tests/pty_smoke.py`（18 个 pty 场景）。
 
 ---
 

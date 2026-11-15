@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .screen import Screen, Style, ellipsize, st, text_width, wrap_text
+from ..i18n import tr
 
 
 @dataclass
@@ -48,17 +49,20 @@ def draw_menu(
             style = st(fg="text")
         screen.fill(x, y + index, width, 1, style)
         marker = "▸ " if selected else "  "
-        label = ellipsize(item.label, max(1, width - 4))
+        label = ellipsize(tr(item.label), max(1, width - 4))
         screen.put(x + 1, y + index, marker + label, style)
         if item.hint:
-            hint_width = text_width(item.hint)
+            hint = tr(item.hint)
+            hint_width = text_width(hint)
             hint_x = x + width - hint_width - 2
             if hint_x > x + text_width(marker + label) + 2:
-                screen.put(hint_x, y + index, item.hint, style if selected else st(fg="muted"))
+                screen.put(hint_x, y + index, hint, style if selected else st(fg="muted"))
     return len(items)
 
 
 def draw_title(screen: Screen, title: str, subtitle: str = "") -> None:
+    title = tr(title)
+    subtitle = tr(subtitle)
     width = screen.w
     screen.fill(0, 0, width, 1, st(fg="cyan", bg="header", bold=True))
     screen.put(2, 0, title, st(fg="cyan", bg="header", bold=True))
@@ -69,12 +73,14 @@ def draw_title(screen: Screen, title: str, subtitle: str = "") -> None:
 
 
 def draw_footer(screen: Screen, hints: str) -> None:
+    hints = tr(hints)
     y = screen.h - 1
     screen.fill(0, y, screen.w, 1, st(fg="muted", bg="footer"))
     screen.put(1, y, ellipsize(hints, screen.w - 2), st(fg="muted", bg="footer"))
 
 
 def draw_toast(screen: Screen, message: str, level: str = "info") -> None:
+    message = tr(message)
     if not message:
         return
     color = {"info": "cyan", "ok": "green", "error": "red", "warn": "yellow"}.get(
@@ -106,7 +112,7 @@ def draw_table(
     screen.fill(x, y, width, 1, header_style)
     col = x
     for index, header in enumerate(headers):
-        screen.put(col, y, _pad(header, widths[index]), header_style)
+        screen.put(col, y, _pad(tr(header), widths[index]), header_style)
         col += widths[index] + 1
 
     visible = rows[offset:]
@@ -127,7 +133,7 @@ def draw_table(
             cell_style = style
             if index != cursor and c_index == 0:
                 cell_style = style
-            screen.put(col, y + 1 + row_index, _pad(value, widths[c_index]), cell_style)
+            screen.put(col, y + 1 + row_index, _pad(tr(value), widths[c_index]), cell_style)
             col += widths[c_index] + 1
     return len(visible)
 
@@ -152,6 +158,10 @@ def draw_modal(
     vertical_options: bool = False,
 ) -> tuple[int, int, int, int]:
     inner = max(20, width - 6)
+    title = tr(title)
+    lines = [tr(line) for line in lines]
+    options = [tr(option) for option in options] if options else options
+    hint = tr(hint)
     wrapped: list[str] = []
     for line in lines:
         wrapped.extend(wrap_text(line, inner) if line else [""])

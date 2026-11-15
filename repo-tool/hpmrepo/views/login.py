@@ -6,6 +6,7 @@ from __future__ import annotations
 import subprocess
 
 from ..core import auth
+from ..i18n import tr
 from ..tui.screen import Screen, ellipsize, st
 from ..tui.widgets import draw_footer, draw_title
 from ..util import log
@@ -43,7 +44,7 @@ class LoginView(View):
             lines.append("也可以设置 HPM_DEV_BIN 指向支持 login 的程序。")
         y = 3
         for line in lines:
-            screen.put(4, y, ellipsize(line, screen.w - 8), st(fg="text"))
+            screen.put(4, y, ellipsize(tr(line), screen.w - 8), st(fg="text"))
             y += 1
         draw_footer(screen, "Enter 开始登录 · g 生成签名请求 · Esc 返回 · r 重新探测")
 

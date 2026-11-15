@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ..core import crypto, index as index_mod, packages
 from ..repo import Role
+from ..i18n import tr
 from ..tui.screen import Screen, ellipsize, st, text_width
 from ..tui.widgets import MenuItem, draw_footer, draw_table, draw_title
 from ..util import log
@@ -162,7 +163,7 @@ class PackageListView(View):
             for r in self.rows
         ]
         if not table_rows:
-            screen.put(4, 3, "还没有包。可先使用「发布 / 签名包」。", st(fg="muted"))
+            screen.put(4, 3, tr("还没有包。可先使用「发布 / 签名包」。"), st(fg="muted"))
         else:
             draw_table(
                 screen,
@@ -245,7 +246,7 @@ class PackageDetailView(View):
             lines.append(f"  - {issue}")
         y = 3
         for line in lines:
-            screen.put(4, y, ellipsize(line, screen.w - 8), st(fg="text"))
+            screen.put(4, y, ellipsize(tr(line), screen.w - 8), st(fg="text"))
             y += 1
         draw_footer(screen, "a 加入索引 · d 删除 · Esc 返回" if not row.indexed else "d 删除该版本 · Esc 返回")
 
@@ -367,7 +368,7 @@ class VerifyView(View):
                 )
                 y += 1
             else:
-                screen.put(9, y, ellipsize(check.detail, screen.w - 14), st(fg="red"))
+                screen.put(9, y, ellipsize(tr(check.detail), screen.w - 14), st(fg="red"))
                 y += 1
         draw_footer(screen, "↑↓ 滚动 · r 重新校验 · Esc 返回")
 

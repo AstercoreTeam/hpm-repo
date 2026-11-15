@@ -9,7 +9,7 @@ import time
 import traceback
 from typing import Callable
 
-from . import __app_long_name__, __version__, config, repo as repo_mod
+from . import __app_long_name__, __version__, config, i18n, repo as repo_mod
 from .core import identity as identity_mod
 from .tui import theme
 from .tui.screen import Screen, ellipsize, st, text_width, wrap_text
@@ -21,6 +21,7 @@ from .util.errors import ToolError
 
 class App:
     def __init__(self, *, animate: bool = True) -> None:
+        i18n.init(config.language_setting())
         self.terminal = Terminal()
         width, height = self.terminal.size()
         self.screen = Screen(width, height)
@@ -291,6 +292,9 @@ class App:
     ) -> str | None:
         text = list(default)
         cursor = len(text)
+        prompt = i18n.tr(prompt)
+        title = i18n.tr(title)
+        hint = i18n.tr(hint)
         prompt_lines = wrap_text(prompt, max(20, min(70, self.screen.w - 10)))
         hold_until = time.monotonic() + 0.5
 
@@ -394,6 +398,11 @@ class App:
     def clear_key_cache(self) -> None:
         self._key_cache.clear()
 
+    def set_language(self, language: str) -> None:
+        config.save_language(language)
+        i18n.init(language)
+        self.screen.invalidate()
+
     @property
     def key_cache_size(self) -> int:
         return len(self._key_cache)
@@ -402,16 +411,21 @@ class App:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="hrm",
-        description=f"{__app_long_name__}（HPM 仓库维护工具）",
+        description=i18n.tr(f"{__app_long_name__}（HPM 仓库维护工具）"),
     )
-    parser.add_argument("--no-animation", action="store_true", help="跳过启动动画")
-    parser.add_argument("--no-color", action="store_true", help="禁用颜色")
-    parser.add_argument("--debug", action="store_true", help="显示内部错误堆栈")
+    parser.add_argument(
+        "--no-animation", action="store_true", help=i18n.tr("跳过启动动画")
+    )
+    parser.add_argument("--no-color", action="store_true", help=i18n.tr("禁用颜色"))
+    parser.add_argument(
+        "--debug", action="store_true", help=i18n.tr("显示内部错误堆栈")
+    )
     parser.add_argument("--version", action="version", version=f"hrm {__version__}")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    i18n.init(config.language_setting())
     args = build_parser().parse_args(argv)
     if args.no_color:
         import os
@@ -420,7 +434,7 @@ def main(argv: list[str] | None = None) -> int:
     app = App(animate=not args.no_animation)
     app.debug = args.debug
     if not app.terminal.is_tty:
-        print("hrm 需要交互式终端（TTY）。请在终端中运行。")
+        print(i18n.tr("hrm 需要交互式终端（TTY）。请在终端中运行。"))
         return 2
     try:
         app.run()
@@ -432,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.debug:
             traceback.print_exc()
         else:
-            print(f"hrm 发生内部错误，详见 {log.log_path()}")
+            print(i18n.tr("hrm 发生内部错误，详见") + f" {log.log_path()}")
         return 1
     finally:
         app.terminal.exit()

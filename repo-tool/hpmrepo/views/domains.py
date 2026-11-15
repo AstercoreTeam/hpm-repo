@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from ..core import crypto, domains as domains_mod, index as index_mod, revoke
+from ..i18n import tr
 from ..tui.screen import Screen, ellipsize, st, text_width
 from ..tui.widgets import MenuItem, draw_footer, draw_table, draw_title
 from ..util import log
@@ -109,7 +110,7 @@ class DomainListView(View):
             screen.put(
                 4,
                 3,
-                "还没有域。可先使用「签发证书」处理 requests/ 中的域请求。",
+                tr("还没有域。可先使用「签发证书」处理 requests/ 中的域请求。"),
                 st(fg="muted"),
             )
         draw_footer(screen, "Enter 详情 · ↑↓ 移动 · r 刷新 · Esc 返回")
@@ -153,7 +154,7 @@ class DomainDetailView(View):
             ]
         y = 3
         for line in lines:
-            screen.put(4, y, ellipsize(line, screen.w - 8), st(fg="text"))
+            screen.put(4, y, ellipsize(tr(line), screen.w - 8), st(fg="text"))
             y += 1
         draw_footer(screen, "Esc 返回")
 

@@ -15,6 +15,7 @@ from ..core import (
     revoke,
 )
 from ..repo import Role, detect
+from ..i18n import tr
 from ..tui.screen import Screen, ellipsize, st
 from ..tui.widgets import draw_footer, draw_title
 from ..util import log
@@ -79,7 +80,7 @@ class InitRepoView(View):
             lines.insert(1, "")
         y = 3
         for line in lines:
-            screen.put(4, y, ellipsize(line, screen.w - 8), st(fg="text"))
+            screen.put(4, y, ellipsize(tr(line), screen.w - 8), st(fg="text"))
             y += 1
         draw_footer(screen, "Enter 开始 · Esc 返回")
 
@@ -338,7 +339,7 @@ class FinishInitView(View):
         draw_title(screen, "完成初始化", "导入证书后签名索引")
         y = 3
         for line in self.info:
-            screen.put(4, y, ellipsize(line, screen.w - 8), st(fg="text"))
+            screen.put(4, y, ellipsize(tr(line), screen.w - 8), st(fg="text"))
             y += 1
         y += 1
         hint = [
@@ -348,7 +349,7 @@ class FinishInitView(View):
             "按 Enter 开始，Esc 返回。",
         ]
         for line in hint:
-            screen.put(4, y, ellipsize(line, screen.w - 8), st(fg="muted"))
+            screen.put(4, y, ellipsize(tr(line), screen.w - 8), st(fg="muted"))
             y += 1
         draw_footer(screen, "Enter 签名 · Esc 返回")
 

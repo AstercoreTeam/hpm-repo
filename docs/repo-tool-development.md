@@ -449,6 +449,16 @@ app.foo = args.foo
 
 ---
 
+### 5.1 国际化（i18n）
+
+- 源码中的中文文案直接作为 key；
+- `repo-tool/i18n/en.json`：中文 → English；
+- `repo-tool/i18n/zh.json`：中文覆盖（一般留空）；
+- 新增界面文案时，在 `en.json` 补对应英文；缺失时英文模式会回退中文；
+- 翻译在渲染边界执行（`tui/widgets.py`、`MenuView` 头部、`app.input`），业务代码不需要到处调用 `tr()`；
+- 直接 `screen.put()` 的自定义视图需要手动 `tr()`；
+- 用户设置存 `~/.hpm/hrm.json`，不要写进仓库。
+
 ## 6. 测试扩展
 
 ### 6.1 pytest
@@ -521,6 +531,7 @@ python3 tests/pty_smoke.py
 | `HPM_KEY_PASSWORD` | 非交互场景的私钥密码 |
 | `HPM_ALLOW_UNENCRYPTED` | 测试用：跳过「未加密私钥」迁移提示 |
 | `HPM_DISABLE_CENTER_SYNC` | 测试/离线：关闭开发者中心同步 |
+| `HPM_LANG` | 临时覆盖界面语言：`en` / `zh`（默认 `en`） |
 | `HPM_APP_ID` / `HPM_APP_KEY` / `HPM_API_BASE` | 覆盖开发者中心应用凭据 |
 | `HPM_DEV_BIN` | 指定登录程序 |
 | `NO_COLOR` | 禁用颜色 |

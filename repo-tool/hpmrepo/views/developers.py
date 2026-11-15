@@ -7,6 +7,7 @@ import datetime as dt
 from pathlib import Path
 
 from ..core import crypto, developers as dev_mod, domains as domains_mod, index as index_mod, revoke
+from ..i18n import tr
 from ..tui.screen import Screen, ellipsize, st, text_width
 from ..tui.widgets import MenuItem, draw_footer, draw_table, draw_title
 from ..util.fs import atomic_write
@@ -123,7 +124,7 @@ class DeveloperListView(View):
                 max_rows=body,
             )
         else:
-            screen.put(4, 3, "还没有开发者。可把签名请求放进 incoming/ 后使用「添加开发者」。", st(fg="muted"))
+            screen.put(4, 3, tr("还没有开发者。可把签名请求放进 incoming/ 后使用「添加开发者」。"), st(fg="muted"))
         draw_footer(screen, "Enter 详情 · ↑↓ 移动 · r 刷新 · Esc 返回")
 
     def handle_key(self, key) -> None:
@@ -166,7 +167,7 @@ class DeveloperDetailView(View):
         ]
         y = 3
         for line in lines:
-            screen.put(4, y, ellipsize(line, screen.w - 8), st(fg="text"))
+            screen.put(4, y, ellipsize(tr(line), screen.w - 8), st(fg="text"))
             y += 1
         draw_footer(screen, "r 吊销此证书 · Esc 返回")
 

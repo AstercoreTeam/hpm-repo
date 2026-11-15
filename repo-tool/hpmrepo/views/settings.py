@@ -5,7 +5,7 @@ from __future__ import annotations
 
 
 from .. import __version__
-from .. import config
+from .. import config, i18n
 from ..core import auth, crypto, gitops, keys as keys_mod
 from ..tui.widgets import MenuItem
 from ..util import log
@@ -21,7 +21,13 @@ class SettingsView(MenuView):
         self.refresh_items()
 
     def build_items(self) -> list[MenuItem]:
+        lang = i18n.language()
         items = [
+            MenuItem(
+                "Language: English" if lang == "en" else "语言：中文",
+                "Switch to 中文" if lang == "en" else "切换到 English",
+                action="language",
+            ),
             MenuItem("状态信息", "路径 / 依赖 / Token", action="status"),
             MenuItem("校验仓库", "索引 / 包 / 证书", action="verify"),
         ]
@@ -41,12 +47,25 @@ class SettingsView(MenuView):
             f"Token: {self.app.token.label()}",
             f"仓库: {ctx.root} · {ctx.role.label}",
             f"密钥缓存: {self.app.key_cache_size} 个",
+            f"语言设置: {config.settings_path()}",
         ]
 
     def on_select(self, item: MenuItem) -> None:
         ctx = self.app.ctx
         if item.action == "back":
             self.app.pop()
+        elif item.action == "language":
+            new_lang = "zh" if i18n.language() == "en" else "en"
+            try:
+                self.app.set_language(new_lang)
+            except OSError as exc:
+                self.app.error("保存语言设置失败", str(exc))
+                return
+            self.app.toast(
+                "Language: 中文" if new_lang == "zh" else "Language: English",
+                "ok",
+                2,
+            )
         elif item.action == "status":
             self._status()
         elif item.action == "verify":

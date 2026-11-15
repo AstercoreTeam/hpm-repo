@@ -7,6 +7,7 @@ from .. import __app_long_name__
 from ..core import gitops, index as index_mod, keys as keys_mod
 from ..repo import Role
 from ..core.identity import Identity
+from ..i18n import tr
 from ..tui.screen import Screen, ellipsize, st
 from ..tui.widgets import MenuItem, draw_footer, draw_menu, draw_title, menu_move
 from .base import View
@@ -243,7 +244,7 @@ class HomeView(View):
             screen.put(
                 x + 2,
                 y + 1 + index,
-                ellipsize(line, box_w - 4),
+                ellipsize(tr(line), box_w - 4),
                 st(fg="text", bg="header"),
             )
 

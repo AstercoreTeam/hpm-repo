@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from ..i18n import tr
 from ..tui.screen import Screen
 from ..tui.widgets import MenuItem, draw_footer, draw_menu, draw_title, menu_move
 
@@ -58,7 +59,7 @@ class MenuView(View):
 
             width = screen.w - 6
             for line in lines:
-                screen.put(3, y, ellipsize(line, width), st(fg="muted"))
+                screen.put(3, y, ellipsize(tr(line), width), st(fg="muted"))
                 y += 1
             y += 1
         if not self.items:

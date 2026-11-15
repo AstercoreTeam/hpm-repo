@@ -27,6 +27,7 @@ hpm-repo/
 │   ├── hpmrepo/                工具源码
 │   ├── requests/               待处理签名请求（未登录也可提交）
 │   ├── tests/                  单元测试与 pty 冒烟
+│   ├── i18n/                   中英文词典（en.json / zh.json）
 │   └── requirements.txt        依赖
 ├── <developer>/            每个开发者一个文件夹
 │   ├── <developer>.crt         开发者证书（官方/域证书签发）
@@ -71,6 +72,7 @@ pip3 install -r repo-tool/requirements.txt
 | 开发者管理 | 查看证书、读取 `requests/` 请求列表、签发/吊销/删除开发者、导出证书与回执 |
 | 私域管理 | 官方仓库主界面的「私域管理」：私域列表、签发证书、登记证书、吊销/删除域 |
 | 信任根管理 | 官方仓库主界面：签发官方证书、吊销官方证书、更新 ROOT 吊销列表日期；每次操作重新输入根私钥路径，不缓存 |
+| 中英文界面 | 设置页切换 English / 中文；默认 English；词典在 `repo-tool/i18n/` |
 | 更新吊销列表 | 主页主菜单：仅刷新 `revoke.json` 的 `updatedAt` 并重签，不改条目 |
 | 吊销证书 | 生成并签名根目录 `revoke.json` |
 | 初始化私域仓库 | 建 Git 仓库、生成加密的 official 密钥、生成官方签名请求、配置远程 |
@@ -142,12 +144,20 @@ pip3 install -r repo-tool/requirements.txt
 新私钥必须设置至少 8 位密码；已有未加密私钥在首次签名时会提示设置密码并加密保存。
 支持 PEM（PKCS#8/传统 OpenSSL）与 OpenSSH 私钥格式；加密私钥会弹出密码输入框（最多 3 次）。密码只保存在内存，可在「设置」中清除缓存，自动化场景可用 `HPM_KEY_PASSWORD`。
 
+### 界面语言
+
+- 默认 **English**；
+- 设置 / 诊断 → 第一项「Language: English / 语言：中文」切换；
+- 选择保存在 `~/.hpm/hrm.json`（不在仓库内）；
+- 词典位于 `repo-tool/i18n/en.json` 与 `zh.json`；
+- 测试或临时覆盖可用 `HPM_LANG=en|zh`。
+
 ### 测试
 
 ```bash
 cd repo-tool
-python3 -m pytest -q          # 33 项单元/集成测试
-python3 tests/pty_smoke.py    # 17 个 pty 端到端场景
+python3 -m pytest -q          # 35 项单元/集成测试
+python3 tests/pty_smoke.py    # 18 个 pty 端到端场景
 ```
 
 ### 文档

@@ -116,6 +116,7 @@ def make_env(root: Path, home: Path, **extra: str) -> dict[str, str]:
         "HPM_REQUESTS_DIR": str(requests_dir(home)),
         "HPM_ALLOW_UNENCRYPTED": "1",
         "HPM_DISABLE_CENTER_SYNC": "1",
+        "HPM_LANG": "zh",
         "HPM_OFFICIAL_CERT": extra.pop(
             "HPM_OFFICIAL_CERT", str(Path.home() / ".hpm" / "official.crt")
         ),
@@ -1093,6 +1094,44 @@ def scenario_root_management() -> None:
         os.close(session.master)
 
 
+def scenario_language() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        root = base / "repo"
+        root.mkdir()
+        home = base / "home"
+        home.mkdir()
+        _make_official_repo(base, root, home)
+        env = make_env(root, home, HPM_ROOT_CA=str(base / "root.crt"))
+        env.pop("HPM_LANG", None)
+        session = Session(env, "--no-animation")
+        session.wait_for("Settings / Diagnostics")
+        for _ in range(6):
+            session.send("\x1b[B")
+            time.sleep(0.12)
+        session.send("\r")
+        session.wait_for("Language: English")
+        session.send("\r")
+        session.wait_for("语言：中文")
+        assert (home / "hrm.json").is_file(), "语言设置未写入 ~/.hpm/hrm.json"
+        session.send("q")
+        time.sleep(0.2)
+        session.send("q")
+        time.sleep(0.2)
+        session.proc.wait(timeout=3)
+        session.drain(0.2)
+        os.close(session.master)
+
+        # 不设置 HPM_LANG，重启后应读取本地设置（中文）
+        session2 = Session(env, "--no-animation")
+        session2.wait_for("退出")
+        session2.send("q")
+        time.sleep(0.2)
+        session2.proc.wait(timeout=3)
+        session2.drain(0.2)
+        os.close(session2.master)
+
+
 def main() -> int:
     scenarios = [
         ("home/gating", scenario_home),
@@ -1111,6 +1150,7 @@ def main() -> int:
         ("refresh revoke date", scenario_refresh_revoke_date),
         ("publish only then index", scenario_publish_only_then_index),
         ("root management", scenario_root_management),
+        ("language", scenario_language),
         ("splash", scenario_splash),
     ]
     failed = 0

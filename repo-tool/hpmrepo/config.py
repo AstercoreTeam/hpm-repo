@@ -8,6 +8,7 @@ $HPM_HOME/dev.json，否则 $HOME/.hpm/dev.json。
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -112,3 +113,37 @@ def token_status(dev: DevConfig | None) -> TokenStatus:
     if seconds <= 0:
         return TokenStatus("expired", expires, 0)
     return TokenStatus("valid", expires, seconds)
+
+
+def settings_path() -> Path:
+    """用户级 hrm 设置，保存在 ~/.hpm/hrm.json，不写入仓库。"""
+    return hpm_home() / "hrm.json"
+
+
+def load_settings() -> dict:
+    path = settings_path()
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def language_setting() -> str:
+    value = str(load_settings().get("language") or "").strip().lower()
+    return value if value in ("en", "zh") else "en"
+
+
+def save_language(language: str) -> None:
+    if language not in ("en", "zh"):
+        language = "en"
+    path = settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = load_settings()
+    data["language"] = language
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)

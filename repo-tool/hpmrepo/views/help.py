@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from ..i18n import language, tr
 from ..tui.screen import Screen, st, text_width, wrap_text
 from ..tui.widgets import draw_footer, draw_title
 from .base import View
@@ -65,11 +66,79 @@ Token
 """
 
 
+HELP_EN = """
+HPM Repo Manager (hrm)
+======================
+
+Home
+  Up/Down or j/k   Move cursor
+  Enter            Select
+  r                Refresh
+  ?                This help
+  q                Quit
+
+General
+  Esc              Back / cancel
+  Arrow keys       Move cursor in input
+  Ctrl-U           Clear input
+  Ctrl-W           Delete previous word
+  Ctrl-C           Force quit
+
+Repository roles
+  Official         official.crt SAN hpm://official, signed by built-in root
+  Private          official.crt SAN hpm://domain/<name>
+  Uninitialized    No official.crt yet; initialize a private repository
+
+Identities
+  Unregistered     Can only generate signing requests
+  Developer        No sign-in; publish packages (sign only)
+  Private Admin    Sign in required; manage packages/developers, sign index/revocation
+  Official Admin   Manage repository, domains, and trust root
+
+Token
+  Read-only from ~/.hpm/dev.json.
+  Login is delegated to hpm-dev login; restart or press r after login.
+  Official admins do not need to sign in.
+
+Signing requests
+  Home -> Generate Signing Request, or g on the login page (no sign-in).
+  Requests go to repo-tool/requests/ and are listed when an admin signs.
+  New private keys are saved under ~/.hpm/keys/ and require an 8+ char password.
+
+Keys
+  Private keys are only read from ~/.hpm:
+    ~/.hpm/keys/official.key
+    ~/.hpm/keys/domain/<domain>/official.key
+    ~/.hpm/keys/dev/<developer>/<developer>.key
+  Legacy keys/<name>/ layouts are still readable.
+  PEM and OpenSSH keys are supported. Encrypted keys prompt for a password.
+
+Trust Root
+  Official admins can issue/revoke official certificates and refresh ROOT_revoke.json.
+  The root private key path and password are requested for every operation and are never cached.
+
+Layout
+  index.json / index.json.sig      Index and signature
+  official.crt                     Repository certificate
+  revoke.json / revoke.json.sig    Repository revocation list
+  ROOT_revoke.json / .sig          Root revocation list
+  <developer>/                     Developer certificate and packages
+  repo-tool/requests/              Pending signing requests
+  requests/                        Processed requests
+  outgoing/                        Issued domain certificates
+
+Security
+  Private keys are never committed; unignored *.key files are rejected.
+  Index and revocation lists must verify against official.crt.
+"""
+
+
 class HelpView(View):
     def __init__(self, app) -> None:
         super().__init__(app)
         self.offset = 0
-        self.lines = [line for line in HELP.strip("\n").splitlines()]
+        text = HELP if language() == "zh" else HELP_EN
+        self.lines = [line for line in text.strip("\n").splitlines()]
 
     def _visible(self, screen: Screen) -> int:
         return max(4, screen.h - 4)
@@ -79,13 +148,13 @@ class HelpView(View):
         visible = self._visible(screen)
         y = 2
         for line in self.lines[self.offset : self.offset + visible]:
-            screen.put(3, y, line, st(fg="text"))
+            screen.put(3, y, tr(line), st(fg="text"))
             y += 1
         if self.offset + visible < len(self.lines):
             screen.put(
                 screen.w - 12,
                 screen.h - 2,
-                "↓ 更多",
+                tr("↓ 更多"),
                 st(fg="muted"),
             )
         draw_footer(screen, "↑↓ / PgUp PgDn 滚动 · Esc 返回")
